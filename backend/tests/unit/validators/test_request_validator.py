@@ -1,8 +1,8 @@
 import pytest
 
-from src.utils.exceptions import ValidationError
-from src.validators.request_validator import RequestValidator
-from src.validators.schemas.auth_schemas import REGISTER_USER_SCHEMA
+from src.layers.main.nyx.utils.exceptions import ValidationError
+from src.layers.main.nyx.validators.request_validator import RequestValidator
+from src.layers.main.nyx.validators.schemas.auth_schemas import REGISTER_USER_SCHEMA
 
 
 def test_request_validator_accepts_valid_payload():
@@ -26,3 +26,4 @@ def test_request_validator_raises_structured_error_for_invalid_payload():
         validator.validate(REGISTER_USER_SCHEMA, {"username": "ab"})
 
     assert exc.value.details["field"] == "root"
+

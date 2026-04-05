@@ -2,10 +2,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.bo.auth_bo import AuthBO
-from src.models.auth import AuthToken
-from src.models.user import User
-from src.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.bo.auth_bo import AuthBO
+from src.layers.main.nyx.models.auth import AuthToken
+from src.layers.main.nyx.models.user import User
+from src.layers.main.nyx.utils.exceptions import AuthenticationError
 
 
 def test_register_user_returns_public_metadata():
@@ -56,3 +56,4 @@ def test_login_rejects_invalid_password():
 
     with pytest.raises(AuthenticationError):
         bo.login({"username": "alice", "password": "wrong-password"})
+

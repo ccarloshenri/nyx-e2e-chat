@@ -1,8 +1,8 @@
 import json
 from unittest.mock import MagicMock
 
-from src.controllers.message_controller import MessageController
-from src.models.auth import AuthContext
+from src.layers.main.nyx.controllers.message_controller import MessageController
+from src.layers.main.nyx.models.auth import AuthContext
 
 
 def test_send_message_returns_accepted(mocker):
@@ -16,7 +16,10 @@ def test_send_message_returns_accepted(mocker):
     jwt_service = MagicMock()
     jwt_service.decode_access_token.return_value = AuthContext("u1", "alice", "t1")
     controller = MessageController(message_bo, validator, jwt_service)
-    mocker.patch("src.controllers.message_controller.extract_bearer_token", return_value="token")
+    mocker.patch(
+        "src.layers.main.nyx.controllers.message_controller.extract_bearer_token",
+        return_value="token",
+    )
 
     response = controller.send_message(
         {
@@ -40,3 +43,4 @@ def test_send_message_returns_accepted(mocker):
     assert response["statusCode"] == 202
     validator.validate.assert_called_once()
     message_bo.enqueue_message.assert_called_once()
+

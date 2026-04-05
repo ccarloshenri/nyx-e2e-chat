@@ -2,10 +2,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.bo.message_bo import MessageBO
-from src.models.enums import MessageStatus
-from src.models.message import Message
-from src.utils.exceptions import AuthorizationError
+from src.layers.main.nyx.bo.message_bo import MessageBO
+from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.models.message import Message
+from src.layers.main.nyx.utils.exceptions import AuthorizationError
 
 
 def test_enqueue_message_rejects_sender_mismatch():
@@ -60,3 +60,4 @@ def test_ack_message_checks_recipient():
             {"conversation_id": "conv-1", "message_id": "msg-1", "received_at": "2026-01-01"},
             user_id="user-c",
         )
+

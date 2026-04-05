@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
 from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
-from src.models.enums import MessageStatus
-from src.models.message import Message
+from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.models.message import Message
 
 
 def test_get_message_returns_none_when_missing():
@@ -39,3 +39,4 @@ def test_save_message_persists_serialized_model():
     dao.save_message(message)
 
     table.put_item.assert_called_once_with(Item=DynamoDbMessageConverter.to_dict(message))
+
