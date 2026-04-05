@@ -3,7 +3,7 @@ from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationD
 from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.interfaces.messaging.i_queue_publisher import IQueuePublisher
 from src.layers.main.nyx.interfaces.realtime.i_websocket_notifier import IWebSocketNotifier
-from src.layers.main.nyx.enums import MessageStatus, WebSocketAction
+from src.layers.main.nyx.enums import EncryptionType, MessageStatus, WebSocketAction
 from src.layers.main.nyx.models.message import Message
 from src.layers.main.nyx.utils.exceptions import AuthorizationError, InfrastructureError, NotFoundError
 from src.layers.main.nyx.utils.idempotency import IdempotencyService
@@ -55,10 +55,10 @@ class MessageBO:
             message_id=payload["message_id"],
             sender_id=payload["sender_id"],
             recipient_id=payload["recipient_id"],
+            encryption_type=EncryptionType(payload["encryption_type"]),
             ciphertext=payload["ciphertext"],
             encrypted_message_key=payload["encrypted_message_key"],
             nonce=payload["nonce"],
-            algorithm=payload["algorithm"],
             created_at=payload["created_at"],
             status=MessageStatus.PENDING,
             metadata=payload.get("metadata", {}),

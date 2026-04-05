@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.layers.main.nyx.bo.message_bo import MessageBO
-from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.enums import EncryptionType, MessageStatus
 from src.layers.main.nyx.models.message import Message
 from src.layers.main.nyx.utils.exceptions import AuthorizationError
 
@@ -23,10 +23,10 @@ def test_enqueue_message_rejects_sender_mismatch():
                 "conversation_id": "conv-1",
                 "sender_id": "user-a",
                 "recipient_id": "user-b",
+                "encryption_type": "AES_GCM_V1",
                 "ciphertext": "cipher",
                 "encrypted_message_key": "key",
                 "nonce": "nonce",
-                "algorithm": "algo",
                 "message_id": "msg-1",
                 "created_at": "2026-01-01T00:00:00+00:00",
             },
@@ -41,10 +41,10 @@ def test_ack_message_checks_recipient():
         message_id="msg-1",
         sender_id="user-a",
         recipient_id="user-b",
+        encryption_type=EncryptionType.AES_GCM_V1,
         ciphertext="cipher",
         encrypted_message_key="key",
         nonce="nonce",
-        algorithm="algo",
         created_at="2026-01-01T00:00:00+00:00",
         status=MessageStatus.PENDING,
     )

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.enums import EncryptionType, MessageStatus
 
 
 @dataclass(slots=True)
@@ -10,10 +10,10 @@ class Message:
     message_id: str
     sender_id: str
     recipient_id: str
+    encryption_type: EncryptionType
     ciphertext: str
     encrypted_message_key: str
     nonce: str
-    algorithm: str
     created_at: str
     status: MessageStatus
     metadata: dict[str, Any] = field(default_factory=dict)

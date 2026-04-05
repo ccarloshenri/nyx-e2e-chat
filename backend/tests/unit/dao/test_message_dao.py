@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
 from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
-from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.enums import EncryptionType, MessageStatus
 from src.layers.main.nyx.models.message import Message
 
 
@@ -28,10 +28,10 @@ def test_save_message_persists_serialized_model():
         message_id="msg",
         sender_id="u1",
         recipient_id="u2",
+        encryption_type=EncryptionType.AES_GCM_V1,
         ciphertext="abc",
         encrypted_message_key="def",
         nonce="ghi",
-        algorithm="algo",
         created_at="2026-01-01T00:00:00+00:00",
         status=MessageStatus.PENDING,
     )

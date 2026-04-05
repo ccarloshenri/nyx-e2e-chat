@@ -29,10 +29,10 @@ def test_send_message_returns_accepted(mocker):
                     "conversation_id": "conv-1",
                     "sender_id": "u1",
                     "recipient_id": "u2",
+                    "encryption_type": "AES_GCM_V1",
                     "ciphertext": "abc",
                     "encrypted_message_key": "def",
                     "nonce": "ghi",
-                    "algorithm": "xchacha20-poly1305",
                     "message_id": "msg-1",
                     "created_at": "2026-01-01T00:00:00+00:00",
                 }
