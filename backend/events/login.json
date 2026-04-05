@@ -1,0 +1,10 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-correlation-id": "local-login-1"
+  },
+  "requestContext": {
+    "requestId": "local-login-request"
+  },
+  "body": "{\"username\":\"alice@example.com\",\"password\":\"StrongPassword123!\"}"
+}

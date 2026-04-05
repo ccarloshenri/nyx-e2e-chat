@@ -1,0 +1,14 @@
+{
+  "headers": {
+    "authorization": "Bearer REPLACE_WITH_VALID_JWT",
+    "x-correlation-id": "local-connect-1"
+  },
+  "queryStringParameters": {
+    "token": "REPLACE_WITH_VALID_JWT"
+  },
+  "requestContext": {
+    "requestId": "local-connect-request",
+    "connectionId": "connection-local-1",
+    "connectedAt": 1712313600000
+  }
+}
