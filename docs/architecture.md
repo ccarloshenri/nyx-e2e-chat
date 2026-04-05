@@ -26,6 +26,6 @@ README.md
 
 ## Future direction
 
-- Keep frontend cryptography client-side under `frontend/src/services/crypto`.
+- Keep frontend cryptography client-side under `frontend/src/crypto`.
 - Extend backend with conversation listing and richer realtime delivery.
 - Add IaC and deployment docs under `docs`.
