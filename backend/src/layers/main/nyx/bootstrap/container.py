@@ -1,20 +1,15 @@
-import boto3
-
 from src.layers.main.nyx.bo.auth_bo import AuthBO
 from src.layers.main.nyx.bo.connection_bo import ConnectionBO
 from src.layers.main.nyx.bo.conversation_bo import ConversationBO
 from src.layers.main.nyx.bo.message_bo import MessageBO
+from src.layers.main.nyx.bootstrap.infrastructure_factory import InfrastructureFactory
+from src.layers.main.nyx.bootstrap.local_data_seeder import LocalDataSeeder
 from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.controllers.auth_controller import AuthController
 from src.layers.main.nyx.controllers.conversation_controller import ConversationController
 from src.layers.main.nyx.controllers.message_controller import MessageController
 from src.layers.main.nyx.controllers.websocket_controller import WebSocketController
-from src.layers.main.nyx.dao.connection_dynamodb_dao import ConnectionDynamoDbDao
-from src.layers.main.nyx.dao.conversation_dynamodb_dao import ConversationDynamoDbDao
-from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
-from src.layers.main.nyx.dao.user_dynamodb_dao import UserDynamoDbDao
-from src.layers.main.nyx.gateways.apigateway_websocket_notifier import ApiGatewayWebSocketNotifier
-from src.layers.main.nyx.gateways.sqs_queue_publisher import SqsQueuePublisher
+from src.layers.main.nyx.gateways.in_memory_queue_publisher import InMemoryQueuePublisher
 from src.layers.main.nyx.services.jwt_token_service import JwtTokenService
 from src.layers.main.nyx.services.password_hasher import PasswordHasher
 from src.layers.main.nyx.services.system_clock import SystemClock
@@ -24,13 +19,7 @@ from src.layers.main.nyx.validators.request_validator import RequestValidator
 
 class NyxContainer:
     def __init__(self) -> None:
-        dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
-        sqs = boto3.client("sqs", region_name=settings.aws_region)
-        websocket_management_api = boto3.client(
-            "apigatewaymanagementapi",
-            region_name=settings.aws_region,
-            endpoint_url=settings.websocket_management_endpoint,
-        )
+        infrastructure_factory = InfrastructureFactory()
 
         self.clock = SystemClock()
         self.id_generator = UuidGenerator()
@@ -38,13 +27,24 @@ class NyxContainer:
         self.password_hasher = PasswordHasher()
         self.jwt_service = JwtTokenService(self.clock, self.id_generator)
 
-        self.user_dao = UserDynamoDbDao(dynamodb)
-        self.connection_dao = ConnectionDynamoDbDao(dynamodb)
-        self.conversation_dao = ConversationDynamoDbDao(dynamodb)
-        self.message_dao = MessageDynamoDbDao(dynamodb)
+        self.user_dao = infrastructure_factory.build_user_dao()
+        self.connection_dao = infrastructure_factory.build_connection_dao()
+        self.conversation_dao = infrastructure_factory.build_conversation_dao()
+        self.message_dao = infrastructure_factory.build_message_dao()
 
-        self.queue_publisher = SqsQueuePublisher(sqs)
-        self.websocket_notifier = ApiGatewayWebSocketNotifier(websocket_management_api)
+        self.queue_publisher = infrastructure_factory.build_queue_publisher()
+        self.websocket_notifier = infrastructure_factory.build_websocket_notifier()
+
+        if settings.is_local or settings.uses_mock_infra:
+            LocalDataSeeder(
+                user_dao=self.user_dao,
+                conversation_dao=self.conversation_dao,
+                password_hasher=self.password_hasher,
+                clock=self.clock,
+            ).seed()
+
+        if isinstance(self.queue_publisher, InMemoryQueuePublisher):
+            self.queue_publisher.set_consumer(self._consume_local_message)
 
     def get_auth_controller(self) -> AuthController:
         return AuthController(
@@ -83,9 +83,21 @@ class NyxContainer:
             conversation_bo=ConversationBO(
                 conversation_dao=self.conversation_dao,
                 clock=self.clock,
+                message_dao=self.message_dao,
+                user_dao=self.user_dao,
             ),
             validator=self.validator,
+            jwt_service=self.jwt_service,
         )
+
+    def _consume_local_message(self, payload: dict) -> None:
+        message_bo = MessageBO(
+            message_dao=self.message_dao,
+            connection_dao=self.connection_dao,
+            conversation_dao=self.conversation_dao,
+            websocket_notifier=self.websocket_notifier,
+        )
+        message_bo.process_queued_message(payload)
 
 _container: NyxContainer | None = None
 

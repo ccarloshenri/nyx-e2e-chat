@@ -22,3 +22,12 @@ class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
         item = response.get("Item")
         return DynamoDbConversationConverter.from_dict(item) if item else None
 
+    def list_conversations_for_user(self, user_id: str) -> list[Conversation]:
+        response = self.table.scan()
+        conversations = [
+            DynamoDbConversationConverter.from_dict(item)
+            for item in response.get("Items", [])
+            if user_id in item.get("participants", [])
+        ]
+        return sorted(conversations, key=lambda conversation: conversation.created_at, reverse=True)
+
