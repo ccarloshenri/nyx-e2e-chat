@@ -1,19 +1,66 @@
+import { useEffect, useState } from "react";
+import { AppHeader } from "../../components/layout/AppHeader";
+import { ConversationList } from "../../components/conversation/ConversationList";
 import { useAuth } from "../../hooks/useAuth";
+import { conversationService } from "../../services/conversations/conversationService";
+import type { ConversationSummary } from "../../types/conversation";
 
 export function ConversationsPage() {
-  const { user, logout } = useAuth();
+  const { token, user, logout } = useAuth();
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  async function loadConversations() {
+    if (!token) {
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const nextConversations = await conversationService.listConversations(token);
+      setConversations(nextConversations);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to load conversations right now."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadConversations();
+  }, [token]);
 
   return (
-    <main className="screen-center">
-      <div className="auth-panel">
-        <span className="eyebrow">Nyx</span>
-        <h1>Protected area</h1>
-        <p className="muted">Signed in as {user?.username ?? "unknown"}.</p>
-        <p className="muted">The conversations workspace will be added in the next delivery block.</p>
-        <button className="button button-secondary" onClick={logout} type="button">
-          Logout
-        </button>
-      </div>
+    <main className="app-shell">
+      <AppHeader
+        username={user?.username ?? "unknown"}
+        onRefresh={() => void loadConversations()}
+        onLogout={logout}
+      />
+      <section className="conversations-grid">
+        <aside className="conversation-sidebar">
+          <div className="sidebar-card">
+            <span className="eyebrow">Privacy status</span>
+            <h2>Secure transport enabled</h2>
+            <p>
+              This frontend is prepared for local cryptography services and protected key handling in
+              future iterations.
+            </p>
+          </div>
+        </aside>
+        <section className="conversation-panel">
+          <ConversationList
+            conversations={conversations}
+            isLoading={isLoading}
+            errorMessage={errorMessage}
+          />
+        </section>
+      </section>
     </main>
   );
 }
