@@ -1,6 +1,6 @@
 import json
 
-from src.config.settings import settings
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.interfaces.messaging.i_queue_publisher import IQueuePublisher
 
 
@@ -15,3 +15,4 @@ class SqsQueuePublisher(IQueuePublisher):
             MessageDeduplicationId=deduplication_id,
             MessageGroupId=group_id,
         )
+

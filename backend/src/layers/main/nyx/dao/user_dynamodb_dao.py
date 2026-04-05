@@ -1,10 +1,10 @@
 from boto3.dynamodb.conditions import Key
 
-from src.config.settings import settings
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_user_converter import DynamoDbUserConverter
 from src.layers.main.nyx.interfaces.dao.i_user_dao import IUserDao
-from src.models.user import User
+from src.layers.main.nyx.models.user import User
 
 
 class UserDynamoDbDao(BaseDynamoDbDao, IUserDao):
@@ -30,3 +30,4 @@ class UserDynamoDbDao(BaseDynamoDbDao, IUserDao):
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item")
         return DynamoDbUserConverter.from_dict(item) if item else None
+

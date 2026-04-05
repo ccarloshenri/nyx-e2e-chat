@@ -4,7 +4,7 @@ import hmac
 import os
 
 from src.layers.main.nyx.interfaces.services.i_password_hasher import IPasswordHasher
-from src.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.utils.exceptions import AuthenticationError
 
 PBKDF2_ITERATIONS = 210_000
 
@@ -33,3 +33,4 @@ class PasswordHasher(IPasswordHasher):
         )
         if not hmac.compare_digest(candidate, base64.b64decode(digest_b64)):
             raise AuthenticationError("Invalid username or password")
+

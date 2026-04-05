@@ -10,3 +10,4 @@ class IClock(ABC):
     @abstractmethod
     def now_iso(self) -> str:
         pass
+

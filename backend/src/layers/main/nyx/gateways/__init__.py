@@ -1,1 +1,2 @@
 """Concrete gateway implementations."""
+

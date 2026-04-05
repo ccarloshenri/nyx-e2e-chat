@@ -9,3 +9,4 @@ class IPasswordHasher(ABC):
     @abstractmethod
     def verify_password(self, password: str, encoded_hash: str) -> None:
         pass
+

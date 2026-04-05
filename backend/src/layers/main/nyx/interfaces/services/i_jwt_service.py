@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.models.auth import AuthContext, AuthToken
+from src.layers.main.nyx.models.auth import AuthContext, AuthToken
 
 
 class IJwtService(ABC):
@@ -11,3 +11,4 @@ class IJwtService(ABC):
     @abstractmethod
     def decode_access_token(self, token: str) -> AuthContext:
         pass
+

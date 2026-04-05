@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from src.models.enums import MessageStatus
-from src.models.message import Message
+from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.models.message import Message
 
 
 class IMessageDao(ABC):
@@ -25,3 +25,4 @@ class IMessageDao(ABC):
         status: MessageStatus,
     ) -> None:
         pass
+

@@ -1,10 +1,10 @@
-from src.config.settings import settings
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_conversation_converter import (
     DynamoDbConversationConverter,
 )
 from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationDao
-from src.models.conversation import Conversation
+from src.layers.main.nyx.models.conversation import Conversation
 
 
 class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
@@ -21,3 +21,4 @@ class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
         response = self.table.get_item(Key={"conversation_id": conversation_id})
         item = response.get("Item")
         return DynamoDbConversationConverter.from_dict(item) if item else None
+

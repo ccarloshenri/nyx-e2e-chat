@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from src.models.conversation import Conversation
+from src.layers.main.nyx.models.conversation import Conversation
 
 
 class DynamoDbConversationConverter:
@@ -11,3 +11,4 @@ class DynamoDbConversationConverter:
     @staticmethod
     def from_dict(item: dict) -> Conversation:
         return Conversation(**item)
+

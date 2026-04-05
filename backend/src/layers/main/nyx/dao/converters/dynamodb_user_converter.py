@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from src.models.user import User
+from src.layers.main.nyx.models.user import User
 
 
 class DynamoDbUserConverter:
@@ -11,3 +11,4 @@ class DynamoDbUserConverter:
     @staticmethod
     def from_dict(item: dict) -> User:
         return User(**item)
+

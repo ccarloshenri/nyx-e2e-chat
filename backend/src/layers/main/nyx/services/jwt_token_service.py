@@ -2,13 +2,13 @@ from datetime import timedelta
 
 import jwt
 
-from src.config.constants import JWT_ALGORITHM
-from src.config.settings import settings
+from src.layers.main.nyx.config.constants import JWT_ALGORITHM
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.interfaces.services.i_clock import IClock
 from src.layers.main.nyx.interfaces.services.i_id_generator import IIdGenerator
 from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
-from src.models.auth import AuthContext, AuthToken
-from src.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.models.auth import AuthContext, AuthToken
+from src.layers.main.nyx.utils.exceptions import AuthenticationError
 
 
 class JwtTokenService(IJwtService):
@@ -43,3 +43,4 @@ class JwtTokenService(IJwtService):
             username=payload["username"],
             token_id=payload["jti"],
         )
+

@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
-from src.models.enums import MessageStatus
-from src.models.message import Message
+from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.models.message import Message
 
 
 class DynamoDbMessageConverter:
@@ -16,3 +16,4 @@ class DynamoDbMessageConverter:
         payload = dict(item)
         payload["status"] = MessageStatus(payload["status"])
         return Message(**payload)
+

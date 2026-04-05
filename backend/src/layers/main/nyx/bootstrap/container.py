@@ -1,14 +1,14 @@
 import boto3
 
-from src.bo.auth_bo import AuthBO
-from src.bo.connection_bo import ConnectionBO
-from src.bo.conversation_bo import ConversationBO
-from src.bo.message_bo import MessageBO
-from src.config.settings import settings
-from src.controllers.auth_controller import AuthController
-from src.controllers.conversation_controller import ConversationController
-from src.controllers.message_controller import MessageController
-from src.controllers.websocket_controller import WebSocketController
+from src.layers.main.nyx.bo.auth_bo import AuthBO
+from src.layers.main.nyx.bo.connection_bo import ConnectionBO
+from src.layers.main.nyx.bo.conversation_bo import ConversationBO
+from src.layers.main.nyx.bo.message_bo import MessageBO
+from src.layers.main.nyx.config.settings import settings
+from src.layers.main.nyx.controllers.auth_controller import AuthController
+from src.layers.main.nyx.controllers.conversation_controller import ConversationController
+from src.layers.main.nyx.controllers.message_controller import MessageController
+from src.layers.main.nyx.controllers.websocket_controller import WebSocketController
 from src.layers.main.nyx.dao.connection_dynamodb_dao import ConnectionDynamoDbDao
 from src.layers.main.nyx.dao.conversation_dynamodb_dao import ConversationDynamoDbDao
 from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
@@ -19,7 +19,7 @@ from src.layers.main.nyx.services.jwt_token_service import JwtTokenService
 from src.layers.main.nyx.services.password_hasher import PasswordHasher
 from src.layers.main.nyx.services.system_clock import SystemClock
 from src.layers.main.nyx.services.uuid_generator import UuidGenerator
-from src.validators.request_validator import RequestValidator
+from src.layers.main.nyx.validators.request_validator import RequestValidator
 
 
 class NyxContainer:
@@ -95,3 +95,20 @@ def get_container() -> NyxContainer:
     if _container is None:
         _container = NyxContainer()
     return _container
+
+
+def build_auth_controller() -> AuthController:
+    return get_container().get_auth_controller()
+
+
+def build_websocket_controller() -> WebSocketController:
+    return get_container().get_websocket_controller()
+
+
+def build_message_controller() -> MessageController:
+    return get_container().get_message_controller()
+
+
+def build_conversation_controller() -> ConversationController:
+    return get_container().get_conversation_controller()
+

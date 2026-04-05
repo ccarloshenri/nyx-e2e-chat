@@ -5,3 +5,4 @@ class IIdGenerator(ABC):
     @abstractmethod
     def new_id(self) -> str:
         pass
+

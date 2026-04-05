@@ -1,12 +1,12 @@
 from boto3.dynamodb.conditions import Key
 
-from src.config.settings import settings
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_connection_converter import (
     DynamoDbConnectionConverter,
 )
 from src.layers.main.nyx.interfaces.dao.i_connection_dao import IConnectionDao
-from src.models.connection import Connection
+from src.layers.main.nyx.models.connection import Connection
 
 
 class ConnectionDynamoDbDao(BaseDynamoDbDao, IConnectionDao):
@@ -31,3 +31,4 @@ class ConnectionDynamoDbDao(BaseDynamoDbDao, IConnectionDao):
         )
         items = response.get("Items", [])
         return DynamoDbConnectionConverter.from_dict(items[0]) if items else None
+

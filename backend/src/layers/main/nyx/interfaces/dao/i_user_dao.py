@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.models.user import User
+from src.layers.main.nyx.models.user import User
 
 
 class IUserDao(ABC):
@@ -15,3 +15,4 @@ class IUserDao(ABC):
     @abstractmethod
     def get_user_by_id(self, user_id: str) -> User | None:
         pass
+

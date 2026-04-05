@@ -12,3 +12,4 @@ class ApiGatewayWebSocketNotifier(IWebSocketNotifier):
             ConnectionId=connection_id,
             Data=json.dumps(payload).encode(),
         )
+

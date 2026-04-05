@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from src.models.connection import Connection
+from src.layers.main.nyx.models.connection import Connection
 
 
 class DynamoDbConnectionConverter:
@@ -11,3 +11,4 @@ class DynamoDbConnectionConverter:
     @staticmethod
     def from_dict(item: dict) -> Connection:
         return Connection(**item)
+

@@ -1,11 +1,11 @@
 from boto3.dynamodb.conditions import Attr, Key
 
-from src.config.settings import settings
+from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
 from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
-from src.models.enums import MessageStatus
-from src.models.message import Message
+from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.models.message import Message
 
 
 class MessageDynamoDbDao(BaseDynamoDbDao, IMessageDao):
@@ -44,3 +44,4 @@ class MessageDynamoDbDao(BaseDynamoDbDao, IMessageDao):
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": status.value},
         )
+

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.models.connection import Connection
+from src.layers.main.nyx.models.connection import Connection
 
 
 class IConnectionDao(ABC):
@@ -19,3 +19,4 @@ class IConnectionDao(ABC):
     @abstractmethod
     def get_connection_by_id(self, connection_id: str) -> Connection | None:
         pass
+
