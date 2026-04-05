@@ -6,14 +6,16 @@ Backend em Python para chat seguro em tempo real usando AWS Lambda, API Gateway 
 
 ```text
 src/
-  controllers/   # Entrada da aplicacao; traduz eventos Lambda/API Gateway para casos de uso
-  bo/            # Regras de negocio e orquestracao entre contratos
-  models/        # Entidades, DTOs e contratos internos
-  validators/    # Schemas jsonschema e validador centralizado
-  utils/         # logging, responses, parsing, serializers e decorators
-  config/        # Settings e constantes
-  functions/lambda/ # Entrypoints Lambda
+  functions/lambda/ # Entrypoints Lambda minimos, uma funcao por pasta
   layers/main/nyx/
+    controllers/ # Entrada da aplicacao; traduz eventos Lambda/API Gateway para casos de uso
+    bo/          # Regras de negocio e orquestracao entre contratos
+    models/      # Entidades e DTOs
+    enums/       # Enumeracoes de dominio
+    validators/  # Schemas jsonschema e validador centralizado
+    decorators/  # Decorators compartilhados de handler
+    utils/       # logging, responses, parsing, serializers e helpers
+    config/      # Settings e constantes
     interfaces/
       dao/       # Contratos de persistencia
       messaging/ # Contratos de mensageria
@@ -35,14 +37,15 @@ Responsabilidades:
 - `layers/main/nyx/dao` e `layers/main/nyx/gateways`: encapsulam AWS e infraestrutura concreta.
 - `layers/main/nyx/bootstrap`: faz o wiring unico das dependencias concretas.
 - `validators`: centralizam `jsonschema` e erros padronizados.
-- `utils`: concentram preocupacoes transversais como JWT, logs estruturados, serializers e decorators.
+- `functions/lambda`: contem apenas entrypoints minimos por Lambda.
+- `layers/main/nyx`: contem toda a logica reutilizavel, infraestrutura e regras do sistema.
 
 Padroes aplicados:
 
 - Valores categoricos de dominio usam `Enum`, como `MessageStatus` e `WebSocketAction`.
 - Models sao anemicos: apenas atributos, sem `to_dict`, `from_dict` ou qualquer logica de infraestrutura.
 - Conversao para DynamoDB acontece somente nos converters da camada DAO concreta.
-- Handlers Lambda usam decorator `@request_handler` para tratamento padronizado de erros e contexto.
+- Handlers Lambda usam decorator `@handler` para tratamento padronizado de erros e contexto.
 - Regras de negocio dependem de interfaces como `IUserDao`, `IMessageDao`, `IQueuePublisher`, `IWebSocketNotifier`, `IJwtService`, `IClock` e `IIdGenerator`.
 - `boto3` existe somente no composition root e nas implementacoes concretas de infraestrutura.
 - Interfaces usam `ABC` e `@abstractmethod`, com contratos explicitos e consistentes em todo o projeto.
@@ -58,15 +61,15 @@ Padroes aplicados:
 
 ### WebSocket
 
-1. O `connect_handler` valida JWT durante o handshake.
+1. O handler `connect/app.py` valida JWT durante o handshake.
 2. O backend associa `connectionId` ao usuario e salva a conexao ativa com TTL.
-3. O `disconnect_handler` remove a conexao ativa.
+3. O handler `src/functions/lambda/disconnect/app.py` remove a conexao ativa.
 
 ### Mensagens
 
 1. O cliente envia payload ja criptografado.
-2. O `send_message_handler` valida o schema, verifica o emissor autenticado e publica no SQS.
-3. O `sqs_message_processor_handler` aplica idempotencia por `message_id`, persiste a mensagem cifrada e tenta fan-out via API Gateway Management API.
+2. O handler `send_message/app.py` valida o schema, verifica o emissor autenticado e publica no SQS.
+3. O handler `process_message/app.py` aplica idempotencia por `message_id`, persiste a mensagem cifrada e tenta fan-out via API Gateway Management API.
 4. Se o destinatario estiver offline, a mensagem fica pendente.
 5. O cliente pode buscar mensagens pendentes e depois enviar ACK.
 
@@ -99,16 +102,16 @@ Para producao, vale evoluir o indice de mensagens com chave composta por status 
 
 ## Handlers
 
-- `src/functions/lambda/register_user_handler.py`
-- `src/functions/lambda/login_handler.py`
-- `src/functions/lambda/fetch_public_key_handler.py`
-- `src/functions/lambda/create_conversation_handler.py`
-- `src/functions/lambda/connect_handler.py`
-- `src/functions/lambda/disconnect_handler.py`
-- `src/functions/lambda/send_message_handler.py`
-- `src/functions/lambda/ack_message_handler.py`
-- `src/functions/lambda/fetch_pending_messages_handler.py`
-- `src/functions/lambda/sqs_message_processor_handler.py`
+- `src/functions/lambda/register_user/app.py`
+- `src/functions/lambda/login/app.py`
+- `src/functions/lambda/fetch_public_key/app.py`
+- `src/functions/lambda/create_conversation/app.py`
+- `src/functions/lambda/connect/app.py`
+- `src/functions/lambda/disconnect/app.py`
+- `src/functions/lambda/send_message/app.py`
+- `src/functions/lambda/ack_message/app.py`
+- `src/functions/lambda/fetch_pending_messages/app.py`
+- `src/functions/lambda/process_message/app.py`
 
 ## Como rodar
 
