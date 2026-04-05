@@ -76,6 +76,35 @@ input {
   color: #9ba7c7;
 }
 
+.nyx-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.26));
+}
+
+.nyx-logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.9);
+}
+
+.auth-logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 24px;
+}
+
+.auth-logo {
+  padding: 10px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(18, 25, 45, 0.95), rgba(10, 15, 31, 0.72));
+  border: 1px solid rgba(115, 231, 212, 0.16);
+}
+
 .eyebrow {
   display: inline-block;
   margin-bottom: 12px;
@@ -173,6 +202,20 @@ input {
   align-items: flex-start;
   gap: 24px;
   margin-bottom: 28px;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(14, 20, 37, 0.84);
+  border: 1px solid rgba(140, 156, 201, 0.16);
 }
 
 .header-actions {

@@ -48,8 +48,9 @@ export function ConversationsPage() {
             <span className="eyebrow">Privacy status</span>
             <h2>Secure transport enabled</h2>
             <p>
-              This frontend is prepared for local cryptography services and protected key handling in
-              future iterations.
+              Message encryption and decryption are resolved only in the frontend through
+              client-side encryption strategies. The backend stores and forwards encrypted payloads
+              without access to plaintext.
             </p>
           </div>
         </aside>

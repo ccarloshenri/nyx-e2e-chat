@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthCardLayout } from "../../components/layout/AuthCardLayout";
 import { Button } from "../../components/ui/Button";
 import { InputField } from "../../components/ui/InputField";
+import { Logo } from "../../components/ui/Logo";
 import { useAuth } from "../../hooks/useAuth";
 
 type LocationState = {
@@ -47,6 +48,9 @@ export function LoginPage() {
       title="Welcome back to Nyx"
       description="Authenticate to restore your protected session and continue your private conversations."
     >
+      <div className="auth-logo-wrap">
+        <Logo size={80} className="nyx-logo auth-logo" />
+      </div>
       <form className="auth-form" onSubmit={handleSubmit}>
         <InputField
           id="username"

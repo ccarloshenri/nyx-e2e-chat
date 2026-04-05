@@ -2,7 +2,7 @@ import { apiClient } from "../api/apiClient";
 import type { LoginCredentials, LoginResponse, UserSession } from "../../types/auth";
 
 async function login(credentials: LoginCredentials): Promise<UserSession> {
-  const response = await apiClient.request<LoginResponse>("/login", {
+  const response = await apiClient.request<LoginResponse>("/auth/login", {
     method: "POST",
     body: credentials
   });
