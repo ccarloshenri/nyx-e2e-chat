@@ -1,17 +1,15 @@
 from unittest.mock import MagicMock
 
-from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
-from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
+from src.layers.main.nyx.aws.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
+from src.layers.main.nyx.aws.dao.message_dynamodb_dao import MessageDynamoDbDao
 from src.layers.main.nyx.enums import EncryptionType, MessageStatus
 from src.layers.main.nyx.models.message import Message
 
 
 def test_get_message_returns_none_when_missing():
-    dynamodb = MagicMock()
-    table = MagicMock()
-    table.get_item.return_value = {}
-    dynamodb.Table.return_value = table
-    dao = MessageDynamoDbDao(dynamodb=dynamodb)
+    messages_table = MagicMock()
+    messages_table.table.get_item.return_value = {}
+    dao = MessageDynamoDbDao(messages_table=messages_table)
 
     result = dao.get_message("conv", "msg")
 
@@ -19,10 +17,8 @@ def test_get_message_returns_none_when_missing():
 
 
 def test_save_message_persists_serialized_model():
-    dynamodb = MagicMock()
-    table = MagicMock()
-    dynamodb.Table.return_value = table
-    dao = MessageDynamoDbDao(dynamodb=dynamodb)
+    messages_table = MagicMock()
+    dao = MessageDynamoDbDao(messages_table=messages_table)
     message = Message(
         conversation_id="conv",
         message_id="msg",
@@ -38,5 +34,7 @@ def test_save_message_persists_serialized_model():
 
     dao.save_message(message)
 
-    table.put_item.assert_called_once_with(Item=DynamoDbMessageConverter.to_dict(message))
+    messages_table.table.put_item.assert_called_once_with(
+        Item=DynamoDbMessageConverter.to_dict(message)
+    )
 
