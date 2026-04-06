@@ -1,6 +1,6 @@
 from jsonschema import Draft202012Validator
 
-from src.layers.main.nyx.utils.exceptions import ValidationError
+from src.layers.main.nyx.exceptions import ValidationError
 
 
 class RequestValidator:
