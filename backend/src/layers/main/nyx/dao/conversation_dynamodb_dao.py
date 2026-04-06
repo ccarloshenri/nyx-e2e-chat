@@ -1,15 +1,15 @@
-from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_conversation_converter import (
     DynamoDbConversationConverter,
 )
+from src.layers.main.nyx.dao.tables.conversations_table import ConversationsTable
 from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationDao
 from src.layers.main.nyx.models.conversation import Conversation
 
 
 class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
-    def __init__(self, dynamodb) -> None:
-        super().__init__(settings.conversations_table_name, dynamodb)
+    def __init__(self, conversations_table: ConversationsTable | None = None) -> None:
+        super().__init__(conversations_table or ConversationsTable())
 
     def create_conversation(self, conversation: Conversation) -> None:
         self.table.put_item(

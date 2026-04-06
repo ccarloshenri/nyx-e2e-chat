@@ -5,7 +5,7 @@ import pytest
 from src.layers.main.nyx.bo.auth_bo import AuthBO
 from src.layers.main.nyx.models.auth import AuthToken
 from src.layers.main.nyx.models.user import User
-from src.layers.main.nyx.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.exceptions import AuthenticationError
 
 
 def test_register_user_returns_public_metadata():

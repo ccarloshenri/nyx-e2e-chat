@@ -8,7 +8,7 @@ from src.layers.main.nyx.interfaces.services.i_clock import IClock
 from src.layers.main.nyx.interfaces.services.i_id_generator import IIdGenerator
 from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
 from src.layers.main.nyx.models.auth import AuthContext, AuthToken
-from src.layers.main.nyx.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.exceptions import AuthenticationError
 
 
 class JwtTokenService(IJwtService):

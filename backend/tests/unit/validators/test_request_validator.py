@@ -1,6 +1,6 @@
 import pytest
 
-from src.layers.main.nyx.utils.exceptions import ValidationError
+from src.layers.main.nyx.exceptions import ValidationError
 from src.layers.main.nyx.validators.request_validator import RequestValidator
 from src.layers.main.nyx.validators.schemas.auth_schemas import REGISTER_USER_SCHEMA
 

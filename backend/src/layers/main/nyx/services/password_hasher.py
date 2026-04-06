@@ -4,7 +4,7 @@ import hmac
 import os
 
 from src.layers.main.nyx.interfaces.services.i_password_hasher import IPasswordHasher
-from src.layers.main.nyx.utils.exceptions import AuthenticationError
+from src.layers.main.nyx.exceptions import AuthenticationError
 
 PBKDF2_ITERATIONS = 210_000
 

@@ -4,7 +4,7 @@ from src.layers.main.nyx.interfaces.services.i_id_generator import IIdGenerator
 from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
 from src.layers.main.nyx.interfaces.services.i_password_hasher import IPasswordHasher
 from src.layers.main.nyx.models.user import User
-from src.layers.main.nyx.utils.exceptions import AuthenticationError, ConflictError, NotFoundError
+from src.layers.main.nyx.exceptions import AuthenticationError, ConflictError, NotFoundError
 from src.layers.main.nyx.utils.serializers import serialize
 
 

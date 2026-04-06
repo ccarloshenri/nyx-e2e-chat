@@ -1,16 +1,16 @@
 from boto3.dynamodb.conditions import Attr, Key
 
-from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
+from src.layers.main.nyx.dao.tables.messages_table import MessagesTable
 from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.enums import MessageStatus
 from src.layers.main.nyx.models.message import Message
 
 
 class MessageDynamoDbDao(BaseDynamoDbDao, IMessageDao):
-    def __init__(self, dynamodb) -> None:
-        super().__init__(settings.messages_table_name, dynamodb)
+    def __init__(self, messages_table: MessagesTable | None = None) -> None:
+        super().__init__(messages_table or MessagesTable())
 
     def save_message(self, message: Message) -> None:
         self.table.put_item(Item=DynamoDbMessageConverter.to_dict(message))

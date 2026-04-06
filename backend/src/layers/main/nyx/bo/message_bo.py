@@ -1,11 +1,7 @@
-from src.layers.main.nyx.interfaces.dao.i_connection_dao import IConnectionDao
-from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationDao
-from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
-from src.layers.main.nyx.interfaces.messaging.i_queue_publisher import IQueuePublisher
-from src.layers.main.nyx.interfaces.realtime.i_websocket_notifier import IWebSocketNotifier
 from src.layers.main.nyx.enums import EncryptionType, MessageStatus, WebSocketAction
+from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfrastructure
 from src.layers.main.nyx.models.message import Message
-from src.layers.main.nyx.utils.exceptions import AuthorizationError, InfrastructureError, NotFoundError
+from src.layers.main.nyx.exceptions import AuthorizationError, InfrastructureError, NotFoundError
 from src.layers.main.nyx.utils.idempotency import IdempotencyService
 from src.layers.main.nyx.utils.serializers import serialize
 
@@ -13,19 +9,16 @@ from src.layers.main.nyx.utils.serializers import serialize
 class MessageBO:
     def __init__(
         self,
-        message_dao: IMessageDao,
-        connection_dao: IConnectionDao,
-        conversation_dao: IConversationDao | None = None,
-        queue_publisher: IQueuePublisher | None = None,
-        websocket_notifier: IWebSocketNotifier | None = None,
+        infrastructure: IInfrastructure,
         idempotency_service: IdempotencyService | None = None,
     ) -> None:
-        self.message_dao = message_dao
-        self.connection_dao = connection_dao
-        self.conversation_dao = conversation_dao
-        self.queue_publisher = queue_publisher
-        self.websocket_notifier = websocket_notifier
-        self.idempotency_service = idempotency_service or IdempotencyService(message_dao)
+        self.infrastructure = infrastructure
+        self.message_dao = infrastructure.get_message_dao()
+        self.connection_dao = infrastructure.get_connection_dao()
+        self.conversation_dao = infrastructure.get_conversation_dao()
+        self.queue_publisher = infrastructure.get_queue_publisher()
+        self.websocket_notifier = infrastructure.get_websocket_notifier()
+        self.idempotency_service = idempotency_service or IdempotencyService(self.message_dao)
 
     def enqueue_message(self, payload: dict, authenticated_user_id: str) -> dict:
         if payload["sender_id"] != authenticated_user_id:

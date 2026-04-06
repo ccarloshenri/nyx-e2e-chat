@@ -1,17 +1,17 @@
 from boto3.dynamodb.conditions import Key
 
-from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_connection_converter import (
     DynamoDbConnectionConverter,
 )
+from src.layers.main.nyx.dao.tables.connections_table import ConnectionsTable
 from src.layers.main.nyx.interfaces.dao.i_connection_dao import IConnectionDao
 from src.layers.main.nyx.models.connection import Connection
 
 
 class ConnectionDynamoDbDao(BaseDynamoDbDao, IConnectionDao):
-    def __init__(self, dynamodb) -> None:
-        super().__init__(settings.connections_table_name, dynamodb)
+    def __init__(self, connections_table: ConnectionsTable | None = None) -> None:
+        super().__init__(connections_table or ConnectionsTable())
 
     def upsert_connection(self, connection: Connection) -> None:
         self.table.put_item(Item=DynamoDbConnectionConverter.to_dict(connection))

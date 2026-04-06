@@ -3,7 +3,7 @@ from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.interfaces.dao.i_user_dao import IUserDao
 from src.layers.main.nyx.interfaces.services.i_clock import IClock
 from src.layers.main.nyx.models.conversation import Conversation
-from src.layers.main.nyx.utils.exceptions import NotFoundError
+from src.layers.main.nyx.exceptions import NotFoundError
 from src.layers.main.nyx.utils.serializers import serialize
 
 

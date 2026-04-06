@@ -11,8 +11,6 @@ load_dotenv()
 @dataclass(frozen=True)
 class Settings:
     service_name: str = os.getenv("SERVICE_NAME", "nyx-e2e-chat-backend")
-    app_env: str = os.getenv("APP_ENV", "aws")
-    infra_mode: str = os.getenv("INFRA_MODE", "aws")
     aws_region: str = os.getenv("AWS_REGION", "us-east-1")
     users_table_name: str = os.getenv("USERS_TABLE_NAME", "nyx-users")
     connections_table_name: str = os.getenv("CONNECTIONS_TABLE_NAME", "nyx-connections")
@@ -26,14 +24,6 @@ class Settings:
         os.getenv("CONNECTION_TTL_SECONDS", str(DEFAULT_CONNECTION_TTL_SECONDS))
     )
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
-
-    @property
-    def is_local(self) -> bool:
-        return self.app_env.lower() == "local"
-
-    @property
-    def uses_mock_infra(self) -> bool:
-        return self.infra_mode.lower() == "mock"
 
 
 settings = Settings()

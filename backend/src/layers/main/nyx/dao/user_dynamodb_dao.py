@@ -1,15 +1,15 @@
 from boto3.dynamodb.conditions import Key
 
-from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
 from src.layers.main.nyx.dao.converters.dynamodb_user_converter import DynamoDbUserConverter
+from src.layers.main.nyx.dao.tables.users_table import UsersTable
 from src.layers.main.nyx.interfaces.dao.i_user_dao import IUserDao
 from src.layers.main.nyx.models.user import User
 
 
 class UserDynamoDbDao(BaseDynamoDbDao, IUserDao):
-    def __init__(self, dynamodb) -> None:
-        super().__init__(settings.users_table_name, dynamodb)
+    def __init__(self, users_table: UsersTable | None = None) -> None:
+        super().__init__(users_table or UsersTable())
 
     def create_user(self, user: User) -> None:
         self.table.put_item(
