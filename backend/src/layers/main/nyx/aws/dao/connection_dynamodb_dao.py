@@ -1,10 +1,10 @@
 from boto3.dynamodb.conditions import Key
 
-from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
-from src.layers.main.nyx.dao.converters.dynamodb_connection_converter import (
+from src.layers.main.nyx.aws.dao.base_dynamodb_dao import BaseDynamoDbDao
+from src.layers.main.nyx.aws.dao.converters.dynamodb_connection_converter import (
     DynamoDbConnectionConverter,
 )
-from src.layers.main.nyx.dao.tables.connections_table import ConnectionsTable
+from src.layers.main.nyx.aws.dao.tables.connections_table import ConnectionsTable
 from src.layers.main.nyx.interfaces.dao.i_connection_dao import IConnectionDao
 from src.layers.main.nyx.models.connection import Connection
 

@@ -1,9 +1,9 @@
 from src.layers.main.nyx.aws.aws_event_parser import extract_aws_bearer_token, parse_aws_json_body
 from src.layers.main.nyx.aws.aws_request_context_builder import build_aws_request_context
+from src.layers.main.nyx.aws.aws_response_formatter import AwsResponseFormatter
 from src.layers.main.nyx.bo.message_bo import MessageBO
 from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
 from src.layers.main.nyx.interfaces.services.i_logger import ILogger
-from src.layers.main.nyx.utils.response_utils import success_response
 from src.layers.main.nyx.validators.request_validator import RequestValidator
 from src.layers.main.nyx.validators.schemas.message_schemas import ACK_MESSAGE_SCHEMA, FETCH_PENDING_MESSAGES_SCHEMA, SEND_MESSAGE_SCHEMA
 
@@ -15,11 +15,13 @@ class MessageController:
         validator: RequestValidator,
         jwt_service: IJwtService,
         logger: ILogger,
+        response_formatter: AwsResponseFormatter,
     ) -> None:
         self.message_bo = message_bo
         self.validator = validator
         self.jwt_service = jwt_service
         self.logger = logger
+        self.response_formatter = response_formatter
 
     def send_message(self, event: dict) -> dict:
         context = build_aws_request_context(event)
@@ -37,7 +39,7 @@ class MessageController:
                 "message_id": payload["message_id"],
             },
         )
-        return success_response(result, status_code=202)
+        return self.response_formatter.success_response(result, status_code=202)
 
     def ack_message(self, event: dict) -> dict:
         context = build_aws_request_context(event)
@@ -55,7 +57,7 @@ class MessageController:
                 "message_id": payload["message_id"],
             },
         )
-        return success_response(result)
+        return self.response_formatter.success_response(result)
 
     def fetch_pending_messages(self, event: dict) -> dict:
         auth = self.jwt_service.decode_access_token(
@@ -64,7 +66,7 @@ class MessageController:
         payload = {"user_id": auth.user_id}
         self.validator.validate(FETCH_PENDING_MESSAGES_SCHEMA, payload)
         result = self.message_bo.fetch_pending_messages(auth.user_id)
-        return success_response(result)
+        return self.response_formatter.success_response(result)
 
     def process_sqs_record(self, record: dict) -> dict:
         payload = parse_aws_json_body({"body": record["body"]})

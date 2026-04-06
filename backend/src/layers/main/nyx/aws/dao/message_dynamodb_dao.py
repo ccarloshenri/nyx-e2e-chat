@@ -1,10 +1,10 @@
 from boto3.dynamodb.conditions import Attr, Key
 
-from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
-from src.layers.main.nyx.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
-from src.layers.main.nyx.dao.tables.messages_table import MessagesTable
-from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.enums import MessageStatus
+from src.layers.main.nyx.aws.dao.base_dynamodb_dao import BaseDynamoDbDao
+from src.layers.main.nyx.aws.dao.converters.dynamodb_message_converter import DynamoDbMessageConverter
+from src.layers.main.nyx.aws.dao.tables.messages_table import MessagesTable
+from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.models.message import Message
 
 

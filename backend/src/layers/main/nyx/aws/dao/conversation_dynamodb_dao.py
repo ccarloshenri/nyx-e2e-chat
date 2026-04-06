@@ -1,8 +1,8 @@
-from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
-from src.layers.main.nyx.dao.converters.dynamodb_conversation_converter import (
+from src.layers.main.nyx.aws.dao.base_dynamodb_dao import BaseDynamoDbDao
+from src.layers.main.nyx.aws.dao.converters.dynamodb_conversation_converter import (
     DynamoDbConversationConverter,
 )
-from src.layers.main.nyx.dao.tables.conversations_table import ConversationsTable
+from src.layers.main.nyx.aws.dao.tables.conversations_table import ConversationsTable
 from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationDao
 from src.layers.main.nyx.models.conversation import Conversation
 

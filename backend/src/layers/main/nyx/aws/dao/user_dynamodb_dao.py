@@ -1,8 +1,8 @@
 from boto3.dynamodb.conditions import Key
 
-from src.layers.main.nyx.dao.base_dynamodb_dao import BaseDynamoDbDao
-from src.layers.main.nyx.dao.converters.dynamodb_user_converter import DynamoDbUserConverter
-from src.layers.main.nyx.dao.tables.users_table import UsersTable
+from src.layers.main.nyx.aws.dao.base_dynamodb_dao import BaseDynamoDbDao
+from src.layers.main.nyx.aws.dao.converters.dynamodb_user_converter import DynamoDbUserConverter
+from src.layers.main.nyx.aws.dao.tables.users_table import UsersTable
 from src.layers.main.nyx.interfaces.dao.i_user_dao import IUserDao
 from src.layers.main.nyx.models.user import User
 

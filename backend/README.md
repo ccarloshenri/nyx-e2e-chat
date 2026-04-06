@@ -13,7 +13,7 @@ src/
     models/      # Entidades e DTOs
     enums/       # Enumeracoes de dominio
     validators/  # Schemas jsonschema e validador centralizado
-    decorators/  # Decorators compartilhados de handler
+    aws/         # Adaptadores e implementacoes especificas da AWS
     utils/       # logging, responses, parsing, serializers e helpers
     config/      # Settings e constantes
     interfaces/
@@ -36,8 +36,8 @@ Responsabilidades:
 - `bo`: concentram regra de negocio de autenticacao, conexoes, conversas e mensagens e dependem apenas de abstracoes.
 - `layers/main/nyx/interfaces`: definem contratos explicitos por capacidade de dominio, sem citar tecnologia.
 - `layers/main/nyx/interfaces/infrastructure`: define o contrato central `IInfrastructure`.
-- `layers/main/nyx/dao` e `layers/main/nyx/gateways`: encapsulam AWS e infraestrutura concreta.
-- `layers/main/nyx/infrastructure`: concentra `AwsInfrastructure`, responsavel por entregar DAOs e gateways prontos sem montar clients AWS diretamente.
+- `layers/main/nyx/aws/dao` e `layers/main/nyx/aws/gateways`: encapsulam DynamoDB, SQS e API Gateway Management API.
+- `layers/main/nyx/aws/infrastructure`: concentra `AwsInfrastructure`, responsavel por entregar DAOs e gateways AWS concretos sem espalhar imports pela Lambda.
 - `validators`: centralizam `jsonschema` e erros padronizados.
 - `functions/lambda`: contem apenas entrypoints minimos por Lambda.
 - `layers/main/nyx`: contem toda a logica reutilizavel, infraestrutura e regras do sistema.

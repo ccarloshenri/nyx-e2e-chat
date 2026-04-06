@@ -1,9 +1,9 @@
-from src.layers.main.nyx.dao.connection_dynamodb_dao import ConnectionDynamoDbDao
-from src.layers.main.nyx.dao.conversation_dynamodb_dao import ConversationDynamoDbDao
-from src.layers.main.nyx.dao.message_dynamodb_dao import MessageDynamoDbDao
-from src.layers.main.nyx.dao.user_dynamodb_dao import UserDynamoDbDao
-from src.layers.main.nyx.gateways.apigateway_websocket_notifier import ApiGatewayWebSocketNotifier
-from src.layers.main.nyx.gateways.sqs_queue_publisher import SqsQueuePublisher
+from src.layers.main.nyx.aws.dao.connection_dynamodb_dao import ConnectionDynamoDbDao
+from src.layers.main.nyx.aws.dao.conversation_dynamodb_dao import ConversationDynamoDbDao
+from src.layers.main.nyx.aws.dao.message_dynamodb_dao import MessageDynamoDbDao
+from src.layers.main.nyx.aws.dao.user_dynamodb_dao import UserDynamoDbDao
+from src.layers.main.nyx.aws.gateways.apigateway_websocket_notifier import ApiGatewayWebSocketNotifier
+from src.layers.main.nyx.aws.gateways.sqs_queue_publisher import SqsQueuePublisher
 from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfrastructure
 
 
