@@ -44,12 +44,5 @@ fi
 pip install -r requirements.txt
 pip install -e .[dev]
 
-if [ ! -f env.local.json ]; then
-  cp env.local.example.json env.local.json
-  echo "[setup] Created backend/env.local.json from env.local.example.json"
-fi
-
-echo "[setup] Local setup complete"
-echo "[setup] Demo local credentials"
-echo "  username: carlo@nyx.app"
-echo "  password: nyx-local-pass"
+echo "[setup] Setup complete"
+echo "[setup] Backend and frontend dependencies are ready"

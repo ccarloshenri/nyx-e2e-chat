@@ -1,2 +1,0 @@
-"""Bootstrap and composition root."""
-

@@ -18,13 +18,14 @@ src/
     config/      # Settings e constantes
     interfaces/
       dao/       # Contratos de persistencia
+      infrastructure/ # Contrato central de infraestrutura
       messaging/ # Contratos de mensageria
       realtime/  # Contratos de notificacao em tempo real
       services/  # Contratos de servicos tecnicos
     dao/         # Implementacoes concretas DynamoDB
     gateways/    # Implementacoes concretas SQS e WebSocket
+    infrastructure/ # Implementacao concreta de infraestrutura AWS
     services/    # JWT, hash, clock, id generator
-    bootstrap/   # Composition root e wiring das Lambdas
 tests/
   unit/          # Testes por camada
 ```
@@ -34,8 +35,9 @@ Responsabilidades:
 - `controllers`: recebem evento bruto, fazem parsing, validam payload, autenticam e chamam BO.
 - `bo`: concentram regra de negocio de autenticacao, conexoes, conversas e mensagens e dependem apenas de abstracoes.
 - `layers/main/nyx/interfaces`: definem contratos explicitos por capacidade de dominio, sem citar tecnologia.
+- `layers/main/nyx/interfaces/infrastructure`: define o contrato central `IInfrastructure`.
 - `layers/main/nyx/dao` e `layers/main/nyx/gateways`: encapsulam AWS e infraestrutura concreta.
-- `layers/main/nyx/bootstrap`: faz o wiring unico das dependencias concretas.
+- `layers/main/nyx/infrastructure`: concentra `AwsInfrastructure`, responsavel por entregar DAOs e gateways prontos sem montar clients AWS diretamente.
 - `validators`: centralizam `jsonschema` e erros padronizados.
 - `functions/lambda`: contem apenas entrypoints minimos por Lambda.
 - `layers/main/nyx`: contem toda a logica reutilizavel, infraestrutura e regras do sistema.
@@ -47,8 +49,10 @@ Padroes aplicados:
 - Conversao para DynamoDB acontece somente nos converters da camada DAO concreta.
 - Handlers Lambda usam decorator `@handler` para tratamento padronizado de erros e contexto.
 - Regras de negocio dependem de interfaces como `IUserDao`, `IMessageDao`, `IQueuePublisher`, `IWebSocketNotifier`, `IJwtService`, `IClock` e `IIdGenerator`.
-- `boto3` existe somente no composition root e nas implementacoes concretas de infraestrutura.
+- `boto3` existe somente nas tables, DAOs e gateways concretos que realmente precisam dele.
 - Interfaces usam `ABC` e `@abstractmethod`, com contratos explicitos e consistentes em todo o projeto.
+- Os handlers instanciam uma unica infraestrutura `AwsInfrastructure` tipada como `IInfrastructure` e reutilizam essa instancia para obter DAOs e gateways.
+- `AwsInfrastructure` nao cria clients AWS; ele apenas entrega implementacoes concretas, e cada DAO/gateway instancia o recurso AWS que precisa.
 - O projeto nao usa `Protocol` nem `from __future__ import annotations`.
 
 ## Fluxo do sistema
@@ -112,6 +116,8 @@ Para producao, vale evoluir o indice de mensagens com chave composta por status 
 - `src/functions/lambda/ack_message/app.py`
 - `src/functions/lambda/fetch_pending_messages/app.py`
 - `src/functions/lambda/process_message/app.py`
+
+Cada `app.py` instancia explicitamente as dependencias que usa, sem container central.
 
 ## Como rodar
 

@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from src.layers.main.nyx.config.settings import settings
+from src.layers.main.nyx.interfaces.services.i_logger import ILogger
 
 SENSITIVE_KEYS = {
     "password",
@@ -38,6 +39,7 @@ class JsonFormatter(logging.Formatter):
             payload.update(_sanitize(record.context))
         return json.dumps(payload, default=str)
 
+
 def _configure_logger(name: str) -> logging.Logger:
     configured_logger = logging.getLogger(name)
     if configured_logger.handlers:
@@ -50,9 +52,20 @@ def _configure_logger(name: str) -> logging.Logger:
     return configured_logger
 
 
-logger = _configure_logger(settings.service_name)
+class StructuredLogger(ILogger):
+    def __init__(self, logger_name: str) -> None:
+        self._logger = _configure_logger(logger_name)
+
+    def info(self, message: str, context: dict[str, Any] | None = None) -> None:
+        self._logger.info(message, extra={"context": context or {}})
+
+    def warning(self, message: str, context: dict[str, Any] | None = None) -> None:
+        self._logger.warning(message, extra={"context": context or {}})
+
+    def exception(self, message: str, context: dict[str, Any] | None = None) -> None:
+        self._logger.exception(message, extra={"context": context or {}})
 
 
-def get_module_logger(name: str) -> logging.Logger:
-    return _configure_logger(name)
+def create_logger(name: str | None = None) -> ILogger:
+    return StructuredLogger(name or settings.service_name)
 

@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from src.layers.main.nyx.utils.exceptions import ApplicationError
+from src.layers.main.nyx.exceptions import ApplicationError
 
 
 def build_response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
