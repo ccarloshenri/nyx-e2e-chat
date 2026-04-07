@@ -1,9 +1,29 @@
 $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent $PSScriptRoot
-$Stage = if ($args.Length -gt 0) { $args[0] } else { "develop" }
-$StackName = "nyx-e2e-chat-$Stage"
-$deployArgs = if ($args.Length -gt 1) { $args[1..($args.Length - 1)] } else { @() }
+$Stage = "main"
+$StackName = "nyx-main"
+$deployArgs = $args
+
+function Add-ToPathIfExists {
+    param(
+        [string]$PathEntry
+    )
+
+    if (-not (Test-Path $PathEntry)) {
+        return
+    }
+
+    $pathParts = $env:Path -split ';'
+    if ($pathParts -notcontains $PathEntry) {
+        $env:Path = "$PathEntry;$env:Path"
+    }
+}
+
+Add-ToPathIfExists (Join-Path $env:LocalAppData "Programs\Python\Python312")
+Add-ToPathIfExists (Join-Path $env:LocalAppData "Programs\Python\Python312\Scripts")
+Add-ToPathIfExists (Join-Path $env:LocalAppData "Programs\Python\Launcher")
+Add-ToPathIfExists (Join-Path $env:ProgramFiles "Amazon\AWSCLIV2")
 
 if (-not (Get-Command sam -ErrorAction SilentlyContinue)) {
     throw "[deploy] AWS SAM CLI is required"
@@ -12,6 +32,59 @@ if (-not (Get-Command sam -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     throw "[deploy] npm is required"
 }
+
+if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+    throw "[deploy] Python 3.12+ is required"
+}
+
+if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
+    throw "[deploy] AWS CLI is required"
+}
+
+function Ensure-FrontendBucket {
+    param(
+        [string]$Region
+    )
+
+    $accountId = aws sts get-caller-identity --query "Account" --output text
+    if (-not $accountId -or $accountId -eq "None") {
+        throw "[deploy] Could not resolve AWS account id"
+    }
+
+    if ($env:FRONTEND_BUCKET) {
+        $bucketName = $env:FRONTEND_BUCKET
+    } else {
+        $bucketName = "nyx-frontend-$accountId-$Region"
+    }
+
+    $bucketExists = $false
+    try {
+        & aws s3api head-bucket --bucket $bucketName *> $null
+        $bucketExists = $LASTEXITCODE -eq 0
+    } catch {
+        $bucketExists = $false
+    }
+
+    if (-not $bucketExists) {
+        Write-Host "[deploy] Creating frontend bucket s3://$bucketName"
+        if ($Region -eq "us-east-1") {
+            aws s3api create-bucket --bucket $bucketName | Out-Null
+        } else {
+            aws s3api create-bucket --bucket $bucketName --create-bucket-configuration LocationConstraint=$Region | Out-Null
+        }
+    } else {
+        Write-Host "[deploy] Frontend bucket already exists: s3://$bucketName"
+    }
+
+    return $bucketName
+}
+
+$awsRegion = aws configure get region
+if (-not $awsRegion) {
+    $awsRegion = "us-east-1"
+}
+
+$frontendBucket = Ensure-FrontendBucket -Region $awsRegion
 
 Write-Host "[deploy] Building and deploying backend"
 Set-Location (Join-Path $RootDir "backend")
@@ -35,12 +108,10 @@ Set-Location (Join-Path $RootDir "frontend")
 npm install
 
 $apiBaseUrl = $null
-if (Get-Command aws -ErrorAction SilentlyContinue) {
-    try {
-        $apiBaseUrl = aws cloudformation describe-stacks --stack-name $StackName --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text
-    } catch {
-        $apiBaseUrl = $null
-    }
+try {
+    $apiBaseUrl = aws cloudformation describe-stacks --stack-name $StackName --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text
+} catch {
+    $apiBaseUrl = $null
 }
 
 if ($apiBaseUrl -and $apiBaseUrl -ne "None") {
@@ -53,10 +124,5 @@ if ($apiBaseUrl -and $apiBaseUrl -ne "None") {
     npm run build
 }
 
-if ($env:FRONTEND_BUCKET) {
-    $targetBucket = "$($env:FRONTEND_BUCKET)-$Stage"
-    Write-Host "[deploy] Uploading frontend dist/ to s3://$targetBucket"
-    aws s3 sync dist/ "s3://$targetBucket"
-} else {
-    Write-Host "[deploy] FRONTEND_BUCKET not set, skipping S3 sync"
-}
+Write-Host "[deploy] Uploading frontend dist/ to s3://$frontendBucket"
+aws s3 sync dist/ "s3://$frontendBucket"

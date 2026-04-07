@@ -9,11 +9,13 @@ type RequestOptions = {
 
 class ApiError extends Error {
   statusCode: number;
+  errorCode: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, errorCode = "request_failed") {
     super(message);
     this.name = "ApiError";
     this.statusCode = statusCode;
+    this.errorCode = errorCode;
   }
 }
 
@@ -39,11 +41,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     : await response.text();
 
   if (!response.ok) {
-    const message =
-      typeof payload === "object" && payload !== null && "error" in payload
-        ? String((payload as { error?: { message?: string } }).error?.message ?? "Request failed")
-        : "Request failed";
-    throw new ApiError(message, response.status);
+    const errorPayload =
+      typeof payload === "object" && payload !== null
+        ? (payload as { error_code?: string; error_message?: string })
+        : null;
+    throw new ApiError(
+      errorPayload?.error_message ?? "request_failed",
+      response.status,
+      errorPayload?.error_code ?? "request_failed"
+    );
   }
 
   return payload as T;

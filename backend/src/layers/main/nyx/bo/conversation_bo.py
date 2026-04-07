@@ -2,8 +2,9 @@ from src.layers.main.nyx.interfaces.dao.i_conversation_dao import IConversationD
 from src.layers.main.nyx.interfaces.dao.i_message_dao import IMessageDao
 from src.layers.main.nyx.interfaces.dao.i_user_dao import IUserDao
 from src.layers.main.nyx.interfaces.services.i_clock import IClock
+from src.layers.main.nyx.interfaces.services.i_id_generator import IIdGenerator
 from src.layers.main.nyx.models.conversation import Conversation
-from src.layers.main.nyx.exceptions import NotFoundError
+from src.layers.main.nyx.exceptions import ConflictError, InfrastructureError, NotFoundError
 from src.layers.main.nyx.utils.serializers import serialize
 
 
@@ -12,18 +13,39 @@ class ConversationBO:
         self,
         conversation_dao: IConversationDao,
         clock: IClock,
+        id_generator: IIdGenerator | None = None,
         message_dao: IMessageDao | None = None,
         user_dao: IUserDao | None = None,
     ) -> None:
         self.conversation_dao = conversation_dao
         self.clock = clock
+        self.id_generator = id_generator
         self.message_dao = message_dao
         self.user_dao = user_dao
 
-    def create_conversation(self, payload: dict) -> dict:
+    def create_conversation(self, payload: dict, authenticated_user_id: str) -> dict:
+        if self.user_dao is None:
+            raise InfrastructureError("user_dao_not_configured")
+
+        target_user = self.user_dao.get_user_by_username(payload["target_username"])
+        if target_user is None:
+            raise NotFoundError("user_not_found")
+        if target_user.user_id == authenticated_user_id:
+            raise ConflictError("conversation_with_self_not_allowed")
+
+        existing_conversation = self._find_direct_conversation(
+            authenticated_user_id,
+            target_user.user_id,
+        )
+        if existing_conversation is not None:
+            return serialize(existing_conversation)
+
+        if self.id_generator is None:
+            raise InfrastructureError("id_generator_not_configured")
+
         conversation = Conversation(
-            conversation_id=payload["conversation_id"],
-            participants=payload["participants"],
+            conversation_id=self.id_generator.new_id(),
+            participants=[authenticated_user_id, target_user.user_id],
             created_at=self.clock.now_iso(),
         )
         self.conversation_dao.create_conversation(conversation)
@@ -72,4 +94,16 @@ class ConversationBO:
         if len(conversation.participants) > 2:
             return "Group conversation"
         return "Direct message"
+
+    def _find_direct_conversation(
+        self,
+        authenticated_user_id: str,
+        target_user_id: str,
+    ) -> Conversation | None:
+        conversations = self.conversation_dao.list_conversations_for_user(authenticated_user_id)
+        expected_participants = {authenticated_user_id, target_user_id}
+        for conversation in conversations:
+            if len(conversation.participants) == 2 and set(conversation.participants) == expected_participants:
+                return conversation
+        return None
 

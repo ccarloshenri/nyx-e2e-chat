@@ -16,21 +16,13 @@ def test_success_response_wraps_payload():
     }
 
 
-def test_error_response_includes_error_metadata_and_correlation_id():
+def test_error_response_returns_snake_case_error_payload():
     formatter = AwsResponseFormatter()
 
-    response = formatter.error_response(
-        ValidationError("Invalid payload", details={"field": "root"}),
-        correlation_id="corr-1",
-    )
+    response = formatter.error_response(ValidationError("Invalid payload", details={"field": "root"}))
 
     assert response["statusCode"] == 400
     assert json.loads(response["body"]) == {
-        "success": False,
-        "error": {
-            "code": "validation_error",
-            "message": "Invalid payload",
-            "details": {"field": "root"},
-        },
-        "correlation_id": "corr-1",
+        "error_code": "validation_error",
+        "error_message": "invalid_payload",
     }

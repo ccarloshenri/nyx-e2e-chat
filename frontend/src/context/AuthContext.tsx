@@ -1,7 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { authService } from "../services/auth/authService";
-import type { AuthContextValue, LoginCredentials, UserSession } from "../types/auth";
+import type { AuthContextValue, LoginCredentials, RegisterCredentials, UserSession } from "../types/auth";
 
 const TOKEN_STORAGE_KEY = "nyx.auth.token";
 const USER_STORAGE_KEY = "nyx.auth.user";
@@ -40,6 +40,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSession(nextSession);
   }
 
+  async function register(credentials: RegisterCredentials) {
+    await authService.register(credentials);
+    await login({
+      username: credentials.username,
+      password: credentials.password,
+    });
+  }
+
   function logout() {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     window.localStorage.removeItem(USER_STORAGE_KEY);
@@ -54,6 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated: Boolean(session?.token),
       isRestoring,
       login,
+      register,
       logout
     }),
     [session, isRestoring]

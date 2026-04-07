@@ -2,6 +2,13 @@ import json
 from typing import Any
 
 from src.layers.main.nyx.exceptions import ApplicationError
+from src.layers.main.nyx.utils.serializers import serialize
+
+
+def to_snake_case(value: str) -> str:
+    normalized = "".join(character.lower() if character.isalnum() else "_" for character in value)
+    compact = "_".join(segment for segment in normalized.split("_") if segment)
+    return compact or "unknown_error"
 
 
 class AwsResponseFormatter:
@@ -9,7 +16,7 @@ class AwsResponseFormatter:
         return {
             "statusCode": status_code,
             "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(body),
+            "body": json.dumps(serialize(body)),
         }
 
     def success_response(self, body: dict[str, Any], status_code: int = 200) -> dict[str, Any]:
@@ -18,16 +25,11 @@ class AwsResponseFormatter:
     def error_response(
         self,
         error: ApplicationError,
-        correlation_id: str | None = None,
     ) -> dict[str, Any]:
-        payload = {
-            "success": False,
-            "error": {
-                "code": error.error_code,
-                "message": error.message,
-                "details": error.details,
+        return self.build_response(
+            error.status_code,
+            {
+                "error_code": to_snake_case(error.error_code),
+                "error_message": to_snake_case(error.message),
             },
-        }
-        if correlation_id:
-            payload["correlation_id"] = correlation_id
-        return self.build_response(error.status_code, payload)
+        )

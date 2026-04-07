@@ -10,6 +10,7 @@ from src.layers.main.nyx.exceptions import AuthenticationError, ConflictError, N
 
 def test_register_user_returns_public_metadata():
     user_dao = MagicMock()
+    user_dao.get_user_by_username.return_value = None
     password_hasher = MagicMock()
     password_hasher.hash_password.return_value = "hashed-password"
     jwt_service = MagicMock()

@@ -5,8 +5,8 @@ Description: Nyx backend infrastructure for a secure end-to-end encrypted chat.
 Parameters:
   StageName:
     Type: String
-    Default: dev
-    Description: Deployment stage name used by HTTP and WebSocket APIs.
+    Default: main
+    Description: Fixed deployment stage name used by HTTP and WebSocket APIs.
   JwtSecret:
     Type: String
     NoEcho: true
@@ -60,7 +60,6 @@ Globals:
         SERVICE_NAME: nyx-e2e-chat-backend
         APP_ENV: aws
         INFRA_MODE: aws
-        AWS_REGION: !Ref AWS::Region
         USERS_TABLE_NAME: !Ref UsersTable
         CONNECTIONS_TABLE_NAME: !Ref ConnectionsTable
         CONVERSATIONS_TABLE_NAME: !Ref ConversationsTable

@@ -23,6 +23,7 @@ user_dao = infrastructure.get_user_dao()
 conversation_bo = ConversationBO(
     conversation_dao=conversation_dao,
     clock=clock,
+    id_generator=id_generator,
     message_dao=message_dao,
     user_dao=user_dao,
 )

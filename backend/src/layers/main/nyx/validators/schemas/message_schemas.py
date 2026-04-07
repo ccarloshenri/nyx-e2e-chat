@@ -54,15 +54,10 @@ FETCH_PENDING_MESSAGES_SCHEMA = {
 
 CREATE_CONVERSATION_SCHEMA = {
     "type": "object",
-    "required": ["conversation_id", "participants"],
+    "required": ["target_username"],
     "additionalProperties": False,
     "properties": {
-        "conversation_id": {"type": "string", "minLength": 1},
-        "participants": {
-            "type": "array",
-            "minItems": 2,
-            "items": {"type": "string", "minLength": 1},
-        },
+        "target_username": {"type": "string", "minLength": 3, "maxLength": 128},
     },
 }
 

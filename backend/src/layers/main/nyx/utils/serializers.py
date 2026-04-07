@@ -1,9 +1,12 @@
 from dataclasses import asdict, is_dataclass
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 
 def serialize(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
     if isinstance(value, Enum):
         return value.value
     if is_dataclass(value):

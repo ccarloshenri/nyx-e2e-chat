@@ -26,19 +26,13 @@ def aws_handler(
                         "error_code": exc.error_code,
                     },
                 )
-                return response_formatter.error_response(
-                    exc,
-                    correlation_id=request_context.correlation_id,
-                )
+                return response_formatter.error_response(exc)
             except Exception:
                 logger.exception(
                     "unhandled_error",
                     {"correlation_id": request_context.correlation_id},
                 )
-                return response_formatter.error_response(
-                    ApplicationError("Internal server error"),
-                    correlation_id=request_context.correlation_id,
-                )
+                return response_formatter.error_response(ApplicationError("Internal server error"))
 
         return wrapper
 

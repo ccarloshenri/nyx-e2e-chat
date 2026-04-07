@@ -6,3 +6,7 @@ export type ConversationSummary = {
   unreadCount: number;
   participantLabel: string;
 };
+
+export type CreateConversationPayload = {
+  target_username: string;
+};

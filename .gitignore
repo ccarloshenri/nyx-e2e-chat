@@ -1,4 +1,5 @@
 .venv/
+.codex/
 backend/.venv/
 backend/.aws-sam/
 backend/.sam-local.log

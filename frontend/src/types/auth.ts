@@ -17,6 +17,26 @@ export type LoginCredentials = {
   password: string;
 };
 
+export type RegisterCredentials = LoginCredentials & {
+  confirmPassword?: string;
+};
+
+export type RegisterPayload = LoginCredentials & {
+  public_key: string;
+  encrypted_private_key: string;
+  kdf_salt: string;
+  kdf_params: Record<string, unknown>;
+};
+
+export type RegisterResponse = {
+  success: boolean;
+  data: {
+    user_id: string;
+    username: string;
+    created_at: string;
+  };
+};
+
 export type LoginResponse = {
   success: boolean;
   data: {
@@ -35,5 +55,6 @@ export type AuthContextValue = {
   isAuthenticated: boolean;
   isRestoring: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => void;
 };

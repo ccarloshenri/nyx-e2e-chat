@@ -21,8 +21,11 @@ class ConversationController:
 
     def create_conversation(self, event: dict) -> dict:
         payload = parse_aws_json_body(event)
+        auth = self.jwt_service.decode_access_token(
+            extract_aws_bearer_token(headers=event.get("headers"))
+        )
         self.validator.validate(CREATE_CONVERSATION_SCHEMA, payload)
-        result = self.conversation_bo.create_conversation(payload)
+        result = self.conversation_bo.create_conversation(payload, auth.user_id)
         return self.response_formatter.success_response(result, status_code=201)
 
     def list_conversations(self, event: dict) -> dict:

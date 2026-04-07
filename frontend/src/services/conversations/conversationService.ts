@@ -1,5 +1,5 @@
 import { apiClient } from "../api/apiClient";
-import type { ConversationSummary } from "../../types/conversation";
+import type { ConversationSummary, CreateConversationPayload } from "../../types/conversation";
 import { env } from "../../utils/env";
 
 const conversationsMock: ConversationSummary[] = [
@@ -45,6 +45,15 @@ async function listConversations(token: string): Promise<ConversationSummary[]> 
   return fetchMockConversations();
 }
 
+async function createConversation(token: string, payload: CreateConversationPayload): Promise<void> {
+  await apiClient.request("/conversations", {
+    method: "POST",
+    token,
+    body: payload
+  });
+}
+
 export const conversationService = {
-  listConversations
+  listConversations,
+  createConversation
 };

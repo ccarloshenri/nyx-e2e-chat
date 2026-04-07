@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent $PSScriptRoot
 
-Write-Host "[setup] Preparing Nyx local development environment"
+Write-Host "[setup] Preparing Nyx project environment"
 
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     throw "[setup] npm is required but was not found"

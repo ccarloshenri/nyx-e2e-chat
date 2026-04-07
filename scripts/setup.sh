@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "[setup] Preparing Nyx local development environment"
+echo "[setup] Preparing Nyx project environment"
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "[setup] npm is required but was not found"
