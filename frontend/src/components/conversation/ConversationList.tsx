@@ -5,12 +5,16 @@ type ConversationListProps = {
   conversations: ConversationSummary[];
   isLoading: boolean;
   errorMessage: string | null;
+  selectedConversationId: string | null;
+  onSelectConversation: (conversationId: string) => void;
 };
 
 export function ConversationList({
   conversations,
   isLoading,
-  errorMessage
+  errorMessage,
+  selectedConversationId,
+  onSelectConversation
 }: ConversationListProps) {
   if (isLoading) {
     return <div className="panel-state">Loading conversations...</div>;
@@ -32,24 +36,37 @@ export function ConversationList({
   return (
     <ul className="conversation-list">
       {conversations.map((conversation) => (
-        <li className="conversation-card" key={conversation.id}>
-          <div className="conversation-main">
-            <div>
-              <h2>{conversation.title}</h2>
-              <p>{conversation.preview}</p>
-            </div>
-            <span className="conversation-time">
-              {formatTimestamp(conversation.updatedAt)}
+        <li key={conversation.id}>
+          <button
+            type="button"
+            className={`conversation-card ${
+              selectedConversationId === conversation.id ? "conversation-card-active" : ""
+            }`.trim()}
+            onClick={() => onSelectConversation(conversation.id)}
+          >
+            <span className="conversation-avatar" aria-hidden="true">
+              {conversation.participantLabel.slice(0, 2).toUpperCase()}
             </span>
-          </div>
-          <div className="conversation-meta">
-            <span>{conversation.participantLabel}</span>
-            {conversation.unreadCount > 0 ? (
-              <span className="unread-badge">{conversation.unreadCount}</span>
-            ) : (
-              <span className="muted">All caught up</span>
-            )}
-          </div>
+            <div className="conversation-card-body">
+              <div className="conversation-main">
+                <div>
+                  <h2>{conversation.title}</h2>
+                  <p>{conversation.preview}</p>
+                </div>
+                <span className="conversation-time">
+                  {formatTimestamp(conversation.updatedAt)}
+                </span>
+              </div>
+              <div className="conversation-meta">
+                <span>{conversation.participantLabel}</span>
+                {conversation.unreadCount > 0 ? (
+                  <span className="unread-badge">{conversation.unreadCount}</span>
+                ) : (
+                  <span className="muted">Encrypted thread</span>
+                )}
+              </div>
+            </div>
+          </button>
         </li>
       ))}
     </ul>
