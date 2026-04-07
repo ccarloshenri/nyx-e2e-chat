@@ -1,0 +1,10 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-correlation-id": "local-register-1"
+  },
+  "requestContext": {
+    "requestId": "local-register-request"
+  },
+  "body": "{\"username\":\"alice@example.com\",\"password\":\"StrongPassword123!\",\"public_key\":\"public-key-placeholder\",\"encrypted_private_key\":\"encrypted-private-key-placeholder\",\"kdf_salt\":\"salt-placeholder\",\"kdf_params\":{\"algorithm\":\"argon2id\",\"memory_cost\":65536,\"time_cost\":3,\"parallelism\":1}}"
+}

@@ -1,0 +1,16 @@
+.venv/
+backend/.venv/
+backend/.aws-sam/
+backend/.sam-local.log
+frontend/.env.local
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.DS_Store

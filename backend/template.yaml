@@ -1,0 +1,578 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Nyx backend infrastructure for a secure end-to-end encrypted chat.
+
+Parameters:
+  StageName:
+    Type: String
+    Default: dev
+    Description: Deployment stage name used by HTTP and WebSocket APIs.
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Default: change-me-in-production
+    Description: Secret used to sign JWT access tokens.
+  JwtExpMinutes:
+    Type: Number
+    Default: 60
+    Description: JWT expiration time in minutes.
+  ConnectionTtlSeconds:
+    Type: Number
+    Default: 86400
+    Description: TTL for active WebSocket connections in seconds.
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+      - CRITICAL
+    Description: Application log verbosity.
+  UsersTableName:
+    Type: String
+    Default: nyx-users
+  ConnectionsTableName:
+    Type: String
+    Default: nyx-connections
+  ConversationsTableName:
+    Type: String
+    Default: nyx-conversations
+  MessagesTableName:
+    Type: String
+    Default: nyx-messages
+  MessageQueueName:
+    Type: String
+    Default: nyx-message-delivery.fifo
+  MessageDlqName:
+    Type: String
+    Default: nyx-message-delivery-dlq.fifo
+
+Globals:
+  Function:
+    Runtime: python3.12
+    CodeUri: .
+    MemorySize: 256
+    Timeout: 15
+    Environment:
+      Variables:
+        SERVICE_NAME: nyx-e2e-chat-backend
+        APP_ENV: aws
+        INFRA_MODE: aws
+        AWS_REGION: !Ref AWS::Region
+        USERS_TABLE_NAME: !Ref UsersTable
+        CONNECTIONS_TABLE_NAME: !Ref ConnectionsTable
+        CONVERSATIONS_TABLE_NAME: !Ref ConversationsTable
+        MESSAGES_TABLE_NAME: !Ref MessagesTable
+        MESSAGE_DELIVERY_QUEUE_URL: !Ref MessageDeliveryQueue
+        JWT_SECRET: !Ref JwtSecret
+        JWT_EXP_MINUTES: !Ref JwtExpMinutes
+        CONNECTION_TTL_SECONDS: !Ref ConnectionTtlSeconds
+        LOG_LEVEL: !Ref LogLevel
+        WEBSOCKET_MANAGEMENT_ENDPOINT: !Sub https://${NyxWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+
+Resources:
+  NyxHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - authorization
+          - content-type
+          - x-correlation-id
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+
+  NyxWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-websocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  NyxWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref NyxWebSocketApi
+      StageName: !Ref StageName
+      AutoDeploy: true
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref UsersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: username-index
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ConnectionsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: connection_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: connection_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: connection-id-index
+          KeySchema:
+            - AttributeName: connection_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ConversationsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversation_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversation_id
+          KeyType: HASH
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref MessagesTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversation_id
+          AttributeType: S
+        - AttributeName: message_id
+          AttributeType: S
+        - AttributeName: recipient_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversation_id
+          KeyType: HASH
+        - AttributeName: message_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: recipient-status-index
+          KeySchema:
+            - AttributeName: recipient_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  MessageDeliveryDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref MessageDlqName
+      FifoQueue: true
+      ContentBasedDeduplication: false
+
+  MessageDeliveryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref MessageQueueName
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MessageDeliveryDlq.Arn
+        maxReceiveCount: 3
+
+  RegisterUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-register-user
+      Handler: src.functions.lambda.register_user.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: UsersWriteAccess
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
+      Events:
+        RegisterUserApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /auth/register
+            Method: POST
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-login
+      Handler: src.functions.lambda.login.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: UsersReadAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
+      Events:
+        LoginApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /auth/login
+            Method: POST
+
+  FetchPublicKeyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-fetch-public-key
+      Handler: src.functions.lambda.fetch_public_key.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: UsersPublicKeyRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
+      Events:
+        FetchPublicKeyApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /auth/public-key
+            Method: POST
+
+  CreateConversationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-create-conversation
+      Handler: src.functions.lambda.create_conversation.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConversationsWriteAccess
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+              Resource: !GetAtt ConversationsTable.Arn
+      Events:
+        CreateConversationApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /conversations
+            Method: POST
+
+  ListConversationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-list-conversations
+      Handler: src.functions.lambda.list_conversations.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConversationsReadAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Scan
+              Resource: !GetAtt ConversationsTable.Arn
+      Events:
+        ListConversationsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /conversations
+            Method: GET
+
+  SendMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-send-message
+      Handler: src.functions.lambda.send_message.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConversationsReadAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt ConversationsTable.Arn
+            - Sid: QueuePublishAccess
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt MessageDeliveryQueue.Arn
+      Events:
+        SendMessageApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /messages
+            Method: POST
+
+  AckMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ack-message
+      Handler: src.functions.lambda.ack_message.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: MessagesAckAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource:
+                - !GetAtt MessagesTable.Arn
+                - !Sub ${MessagesTable.Arn}/index/*
+      Events:
+        AckMessageApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /messages/ack
+            Method: POST
+
+  FetchPendingMessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-fetch-pending-messages
+      Handler: src.functions.lambda.fetch_pending_messages.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: MessagesPendingRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt MessagesTable.Arn
+                - !Sub ${MessagesTable.Arn}/index/*
+      Events:
+        FetchPendingMessagesApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /messages/pending
+            Method: GET
+
+  ProcessMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-process-message
+      Handler: src.functions.lambda.process_message.app.lambda_handler
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - SQSPollerPolicy:
+            QueueName: !Ref MessageQueueName
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: MessagesWriteAndRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt MessagesTable.Arn
+                - !Sub ${MessagesTable.Arn}/index/*
+            - Sid: ConnectionsRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt ConnectionsTable.Arn
+                - !Sub ${ConnectionsTable.Arn}/index/*
+            - Sid: ManageWebSocketConnections
+              Effect: Allow
+              Action:
+                - execute-api:ManageConnections
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${NyxWebSocketApi}/${StageName}/POST/@connections/*
+      Events:
+        ProcessQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt MessageDeliveryQueue.Arn
+            BatchSize: 10
+
+  ConnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-connect
+      Handler: src.functions.lambda.connect.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConnectionsWriteRead
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt ConnectionsTable.Arn
+                - !Sub ${ConnectionsTable.Arn}/index/*
+
+  DisconnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-disconnect
+      Handler: src.functions.lambda.disconnect.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConnectionsDeleteRead
+              Effect: Allow
+              Action:
+                - dynamodb:DeleteItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt ConnectionsTable.Arn
+                - !Sub ${ConnectionsTable.Arn}/index/*
+
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref NyxWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations
+
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref NyxWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectFunction.Arn}/invocations
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref NyxWebSocketApi
+      RouteKey: $connect
+      Target: !Sub integrations/${ConnectIntegration}
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref NyxWebSocketApi
+      RouteKey: $disconnect
+      Target: !Sub integrations/${DisconnectIntegration}
+
+  ConnectInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConnectFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${NyxWebSocketApi}/*/$connect
+
+  DisconnectInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DisconnectFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${NyxWebSocketApi}/*/$disconnect
+
+Outputs:
+  HttpApiUrl:
+    Description: Base URL for the HTTP API.
+    Value: !Sub https://${NyxHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+
+  WebSocketUrl:
+    Description: WebSocket URL for clients.
+    Value: !Sub wss://${NyxWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+
+  WebSocketManagementEndpoint:
+    Description: Management API endpoint used by the message processor.
+    Value: !Sub https://${NyxWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+
+  UsersTableOutput:
+    Description: Users table name.
+    Value: !Ref UsersTable
+
+  ConnectionsTableOutput:
+    Description: Connections table name.
+    Value: !Ref ConnectionsTable
+
+  ConversationsTableOutput:
+    Description: Conversations table name.
+    Value: !Ref ConversationsTable
+
+  MessagesTableOutput:
+    Description: Messages table name.
+    Value: !Ref MessagesTable
+
+  MessageDeliveryQueueUrl:
+    Description: SQS queue URL used for async encrypted message delivery.
+    Value: !Ref MessageDeliveryQueue
+
+  RegisterUserFunctionName:
+    Value: !Ref RegisterUserFunction
+
+  LoginFunctionName:
+    Value: !Ref LoginFunction
+
+  SendMessageFunctionName:
+    Value: !Ref SendMessageFunction
+
+  ProcessMessageFunctionName:
+    Value: !Ref ProcessMessageFunction
