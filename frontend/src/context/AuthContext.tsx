@@ -44,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await authService.register(credentials);
     await login({
       username: credentials.username,
-      password: credentials.password,
+      masterPassword: credentials.masterPassword,
     });
   }
 

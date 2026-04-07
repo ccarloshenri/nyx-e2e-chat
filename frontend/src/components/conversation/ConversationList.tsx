@@ -17,7 +17,7 @@ export function ConversationList({
   onSelectConversation
 }: ConversationListProps) {
   if (isLoading) {
-    return <div className="panel-state">Loading conversations...</div>;
+    return <div className="panel-state">Loading chats...</div>;
   }
 
   if (errorMessage) {
@@ -27,8 +27,8 @@ export function ConversationList({
   if (!conversations.length) {
     return (
       <div className="panel-state">
-        <h2>No conversations yet</h2>
-        <p>Your secure threads will appear here as soon as they are available.</p>
+        <h2>No chats yet</h2>
+        <p>Your private conversations will show up here as soon as they start.</p>
       </div>
     );
   }
@@ -62,7 +62,9 @@ export function ConversationList({
                 {conversation.unreadCount > 0 ? (
                   <span className="unread-badge">{conversation.unreadCount}</span>
                 ) : (
-                  <span className="muted">Encrypted thread</span>
+                  <span className="muted">
+                    {conversation.hasStoredSecret ? "Saved secret" : "Needs unlock setup"}
+                  </span>
                 )}
               </div>
             </div>

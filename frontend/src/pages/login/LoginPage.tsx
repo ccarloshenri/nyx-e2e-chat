@@ -15,7 +15,7 @@ export function LoginPage() {
   const location = useLocation();
   const { login, isAuthenticated } = useAuth();
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [masterPassword, setMasterPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,7 +32,7 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login({ username, password });
+      await login({ username, masterPassword });
       navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
@@ -45,7 +45,7 @@ export function LoginPage() {
     <AuthCardLayout
       eyebrow="End-to-end secure"
       title="Welcome back to Nyx"
-      description="Authenticate to restore your protected session and continue your private conversations."
+      description="Prove your master password without sending it to the backend and continue your protected chats."
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         <InputField
@@ -59,11 +59,11 @@ export function LoginPage() {
         />
         <InputField
           id="password"
-          label="Password"
+          label="Master password"
           type="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Enter your master password"
+          value={masterPassword}
+          onChange={(event) => setMasterPassword(event.target.value)}
           autoComplete="current-password"
           required
         />

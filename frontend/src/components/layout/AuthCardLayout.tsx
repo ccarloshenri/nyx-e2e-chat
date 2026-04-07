@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from "react";
+import { NyxLogo } from "../branding/NyxLogo";
 
 type AuthCardLayoutProps = PropsWithChildren<{
   eyebrow: string;
@@ -14,6 +15,9 @@ export function AuthCardLayout({
 }: AuthCardLayoutProps) {
   return (
     <div className="auth-shell">
+      <div className="auth-brand">
+        <NyxLogo className="brand-logo brand-logo-auth" tone="white" />
+      </div>
       <div className="auth-panel">
         <div className="auth-copy">
           <span className="eyebrow">{eyebrow}</span>

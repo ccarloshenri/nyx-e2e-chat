@@ -1,5 +1,10 @@
 import { apiClient } from "../api/apiClient";
-import type { ConversationSummary, CreateConversationPayload } from "../../types/conversation";
+import type {
+  ConversationAccessContext,
+  ConversationSummary,
+  CreateConversationPayload,
+  SaveConversationAccessPayload,
+} from "../../types/conversation";
 import { env } from "../../utils/env";
 
 const conversationsMock: ConversationSummary[] = [
@@ -9,7 +14,8 @@ const conversationsMock: ConversationSummary[] = [
     preview: "New encrypted session available",
     updatedAt: "2026-04-05T17:40:00Z",
     unreadCount: 2,
-    participantLabel: "Direct message"
+    participantLabel: "Direct message",
+    hasStoredSecret: true,
   },
   {
     id: "conv-2",
@@ -17,7 +23,8 @@ const conversationsMock: ConversationSummary[] = [
     preview: "Keys rotated successfully",
     updatedAt: "2026-04-04T21:15:00Z",
     unreadCount: 0,
-    participantLabel: "Team space"
+    participantLabel: "Team space",
+    hasStoredSecret: false,
   }
 ];
 
@@ -53,7 +60,33 @@ async function createConversation(token: string, payload: CreateConversationPayl
   });
 }
 
+async function fetchConversationAccessContext(token: string, conversationId: string) {
+  const response = await apiClient.request<{ data: ConversationAccessContext }>(
+    `/conversations/${conversationId}/access`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+
+  return response.data;
+}
+
+async function saveConversationAccess(
+  token: string,
+  conversationId: string,
+  payload: SaveConversationAccessPayload,
+): Promise<void> {
+  await apiClient.request(`/conversations/${conversationId}/access`, {
+    method: "POST",
+    token,
+    body: payload,
+  });
+}
+
 export const conversationService = {
   listConversations,
-  createConversation
+  createConversation,
+  fetchConversationAccessContext,
+  saveConversationAccess,
 };

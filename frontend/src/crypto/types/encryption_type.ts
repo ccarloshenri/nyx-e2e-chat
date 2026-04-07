@@ -1,3 +1,4 @@
 export enum EncryptionType {
   AES_GCM_V1 = "AES_GCM_V1",
+  AES_GCM_CONVERSATION_V1 = "AES_GCM_CONVERSATION_V1",
 }

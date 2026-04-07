@@ -1,4 +1,5 @@
 export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "",
-  conversationsSource: import.meta.env.VITE_CONVERSATIONS_SOURCE ?? "api"
+  conversationsSource: import.meta.env.VITE_CONVERSATIONS_SOURCE ?? "api",
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ?? ""
 };
