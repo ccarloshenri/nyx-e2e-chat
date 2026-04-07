@@ -6,11 +6,18 @@ from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
 from src.layers.main.nyx.interfaces.services.i_logger import ILogger
 from src.layers.main.nyx.utils.logger import bind_log_context, reset_log_context
 from src.layers.main.nyx.validators.request_validator import RequestValidator
-from src.layers.main.nyx.validators.schemas.message_schemas import ACK_MESSAGE_SCHEMA, FETCH_PENDING_MESSAGES_SCHEMA, SEND_MESSAGE_SCHEMA
 from time import perf_counter
+
+from src.layers.main.nyx.validators.schemas.message_schemas import (
+    ACK_MESSAGE_SCHEMA,
+    FETCH_PENDING_MESSAGES_SCHEMA,
+    SEND_MESSAGE_SCHEMA,
+)
 
 
 class MessageController:
+    """Translate message-related events into validated business operations and queue processing."""
+
     def __init__(
         self,
         message_bo: MessageBO,
@@ -26,6 +33,7 @@ class MessageController:
         self.response_formatter = response_formatter
 
     def send_message(self, event: dict) -> dict:
+        """Validate an outgoing encrypted message request and enqueue it for delivery."""
         context = build_aws_request_context(event)
         auth = self.jwt_service.decode_access_token(
             extract_aws_bearer_token(headers=event.get("headers"))
@@ -66,6 +74,7 @@ class MessageController:
             reset_log_context(log_token)
 
     def ack_message(self, event: dict) -> dict:
+        """Acknowledge a delivered message on behalf of the authenticated recipient."""
         context = build_aws_request_context(event)
         auth = self.jwt_service.decode_access_token(
             extract_aws_bearer_token(headers=event.get("headers"))
@@ -94,6 +103,7 @@ class MessageController:
             reset_log_context(log_token)
 
     def fetch_pending_messages(self, event: dict) -> dict:
+        """Return pending encrypted messages for the authenticated user."""
         context = build_aws_request_context(event)
         auth = self.jwt_service.decode_access_token(
             extract_aws_bearer_token(headers=event.get("headers"))
@@ -115,6 +125,7 @@ class MessageController:
             reset_log_context(log_token)
 
     def list_messages_for_conversation(self, event: dict) -> dict:
+        """List encrypted conversation history after access checks pass."""
         context = build_aws_request_context(event)
         auth = self.jwt_service.decode_access_token(
             extract_aws_bearer_token(headers=event.get("headers"))
@@ -136,6 +147,7 @@ class MessageController:
             reset_log_context(log_token)
 
     def process_sqs_record(self, record: dict) -> dict:
+        """Process one queued message record under a propagated correlation context."""
         payload = parse_aws_json_body({"body": record["body"]})
         self.validator.validate(SEND_MESSAGE_SCHEMA, payload)
         log_token = bind_log_context(
@@ -166,6 +178,7 @@ class MessageController:
             reset_log_context(log_token)
 
     def process_sqs_event(self, event: dict) -> dict:
+        """Process a batch of queued messages and emit a single batch summary log."""
         started_at = perf_counter()
         results = []
         for record in event.get("Records", []):

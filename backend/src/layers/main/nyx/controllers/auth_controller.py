@@ -15,6 +15,8 @@ from src.layers.main.nyx.validators.schemas.auth_schemas import (
 
 
 class AuthController:
+    """Translate HTTP auth requests into validated business operations and structured logs."""
+
     def __init__(
         self,
         auth_bo: AuthBO,
@@ -28,6 +30,7 @@ class AuthController:
         self.response_formatter = response_formatter
 
     def register_user(self, event: dict) -> dict:
+        """Validate the signup payload and create a verifier-based user account."""
         context = build_aws_request_context(event)
         payload = parse_aws_json_body(event)
         self.validator.validate(REGISTER_USER_SCHEMA, payload)
@@ -45,6 +48,7 @@ class AuthController:
             reset_log_context(log_token)
 
     def login(self, event: dict) -> dict:
+        """Validate a login proof exchange and return the authenticated session bundle."""
         context = build_aws_request_context(event)
         payload = parse_aws_json_body(event)
         self.validator.validate(LOGIN_SCHEMA, payload)
@@ -66,6 +70,7 @@ class AuthController:
             reset_log_context(log_token)
 
     def create_login_challenge(self, event: dict) -> dict:
+        """Issue a short-lived login challenge for the provided username."""
         context = build_aws_request_context(event)
         payload = parse_aws_json_body(event)
         self.validator.validate(LOGIN_CHALLENGE_SCHEMA, payload)
@@ -80,6 +85,7 @@ class AuthController:
             reset_log_context(log_token)
 
     def fetch_public_key(self, event: dict) -> dict:
+        """Return the target user's public key used for end-to-end encryption flows."""
         context = build_aws_request_context(event)
         payload = parse_aws_json_body(event)
         self.validator.validate(PUBLIC_KEY_LOOKUP_SCHEMA, payload)

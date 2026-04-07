@@ -10,6 +10,8 @@ logger = create_logger(__name__)
 
 
 class MessageBO:
+    """Handle message queueing, persistence, delivery, and acknowledgement flows."""
+
     def __init__(
         self,
         infrastructure: IInfrastructure,
@@ -24,6 +26,7 @@ class MessageBO:
         self.idempotency_service = idempotency_service or IdempotencyService(self.message_dao)
 
     def enqueue_message(self, payload: dict, authenticated_user_id: str) -> dict:
+        """Authorize the sender and enqueue an encrypted message for async delivery."""
         if payload["sender_id"] != authenticated_user_id:
             raise AuthorizationError("Sender does not match authenticated user")
         self._ensure_conversation_access(payload["conversation_id"], authenticated_user_id)
@@ -56,6 +59,7 @@ class MessageBO:
         }
 
     def process_queued_message(self, payload: dict) -> dict:
+        """Persist an enqueued message and attempt immediate delivery to active connections."""
         if self.idempotency_service.message_already_processed(
             conversation_id=payload["conversation_id"],
             message_id=payload["message_id"],
@@ -90,17 +94,20 @@ class MessageBO:
         return {"message_id": message.message_id, "status": final_status.value}
 
     def fetch_pending_messages(self, user_id: str) -> dict:
+        """Return encrypted messages that still await delivery or acknowledgement."""
         messages = self.message_dao.list_pending_messages_for_user(user_id)
         serialized = serialize(messages)
         return {"messages": serialized, "count": len(serialized)}
 
     def list_messages_for_conversation(self, conversation_id: str, user_id: str) -> dict:
+        """List stored encrypted messages for a conversation the user can access."""
         self._ensure_conversation_access(conversation_id, user_id)
         messages = self.message_dao.list_messages_for_conversation(conversation_id)
         serialized = serialize(messages)
         return {"messages": serialized, "count": len(serialized)}
 
     def ack_message(self, payload: dict, user_id: str) -> dict:
+        """Mark a message as acknowledged by its intended recipient."""
         message = self.message_dao.get_message(
             conversation_id=payload["conversation_id"],
             message_id=payload["message_id"],
@@ -122,6 +129,7 @@ class MessageBO:
         }
 
     def push_pending_messages(self, user_id: str) -> dict:
+        """Push pending encrypted messages to all active WebSocket sessions for a user."""
         connections = self.connection_dao.get_connections_by_user(user_id)
         if not connections:
             return {"delivered": 0}
@@ -149,6 +157,7 @@ class MessageBO:
         return {"delivered": delivered}
 
     def _deliver_to_active_connections(self, message: Message) -> bool:
+        """Attempt realtime fan-out of one encrypted message to active recipient connections."""
         delivered = False
         if self.websocket_notifier is None:
             return delivered
@@ -188,6 +197,7 @@ class MessageBO:
         return delivered
 
     def _ensure_conversation_access(self, conversation_id: str, user_id: str) -> None:
+        """Fail fast when a user tries to access a conversation they do not belong to."""
         if self.conversation_dao is None:
             return
         conversation = self.conversation_dao.get_conversation(conversation_id)

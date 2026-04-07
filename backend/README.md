@@ -1,124 +1,124 @@
 # Nyx E2EE Chat Backend
 
-Backend em Python para chat seguro em tempo real usando AWS Lambda, API Gateway WebSocket, SQS, DynamoDB e JWT. O projeto segue arquitetura em camadas e deixa explicito um principio central: o servidor nunca descriptografa mensagens, apenas recebe, persiste e encaminha payloads criptografados ponta a ponta.
+Python backend for a secure real-time chat application built on AWS Lambda, API Gateway WebSocket, SQS, DynamoDB, and JWT. The project follows a layered architecture and keeps one core security rule explicit: the server never decrypts messages. It only receives, stores, and routes end-to-end encrypted payloads.
 
-## Arquitetura
+## Architecture
 
 ```text
 src/
-  functions/lambda/ # Entrypoints Lambda minimos, uma funcao por pasta
+  functions/lambda/ # Minimal Lambda entrypoints, one function per folder
   layers/main/nyx/
-    controllers/ # Entrada da aplicacao; traduz eventos Lambda/API Gateway para casos de uso
-    bo/          # Regras de negocio e orquestracao entre contratos
-    models/      # Entidades e DTOs
-    enums/       # Enumeracoes de dominio
-    validators/  # Schemas jsonschema e validador centralizado
-    aws/         # Adaptadores e implementacoes especificas da AWS
-    utils/       # logging, responses, parsing, serializers e helpers
-    config/      # Settings e constantes
+    controllers/ # Application entrypoints; translate Lambda/API Gateway events into use cases
+    bo/          # Business rules and orchestration across contracts
+    models/      # Entities and DTOs
+    enums/       # Domain enums
+    validators/  # jsonschema definitions and centralized validation
+    aws/         # AWS-specific adapters and implementations
+    utils/       # Logging, responses, parsing, serializers, and helpers
+    config/      # Settings and constants
     interfaces/
-      dao/       # Contratos de persistencia
-      infrastructure/ # Contrato central de infraestrutura
-      messaging/ # Contratos de mensageria
-      realtime/  # Contratos de notificacao em tempo real
-      services/  # Contratos de servicos tecnicos
-    dao/         # Implementacoes concretas DynamoDB
-    gateways/    # Implementacoes concretas SQS e WebSocket
-    infrastructure/ # Implementacao concreta de infraestrutura AWS
-    services/    # JWT, hash, clock, id generator
+      dao/       # Persistence contracts
+      infrastructure/ # Central infrastructure contract
+      messaging/ # Messaging contracts
+      realtime/  # Realtime notification contracts
+      services/  # Technical service contracts
+    dao/         # Concrete DynamoDB implementations
+    gateways/    # Concrete SQS and WebSocket implementations
+    infrastructure/ # Concrete AWS infrastructure implementation
+    services/    # JWT, hashing, clock, and ID generator services
 tests/
-  unit/          # Testes por camada
+  unit/          # Layered unit tests
 ```
 
-Responsabilidades:
+Responsibilities:
 
-- `controllers`: recebem evento bruto, fazem parsing, validam payload, autenticam e chamam BO.
-- `bo`: concentram regra de negocio de autenticacao, conexoes, conversas e mensagens e dependem apenas de abstracoes.
-- `layers/main/nyx/interfaces`: definem contratos explicitos por capacidade de dominio, sem citar tecnologia.
-- `layers/main/nyx/interfaces/infrastructure`: define o contrato central `IInfrastructure`.
-- `layers/main/nyx/aws/dao` e `layers/main/nyx/aws/gateways`: encapsulam DynamoDB, SQS e API Gateway Management API.
-- `layers/main/nyx/aws/infrastructure`: concentra `AwsInfrastructure`, responsavel por entregar DAOs e gateways AWS concretos sem espalhar imports pela Lambda.
-- `validators`: centralizam `jsonschema` e erros padronizados.
-- `functions/lambda`: contem apenas entrypoints minimos por Lambda.
-- `layers/main/nyx`: contem toda a logica reutilizavel, infraestrutura e regras do sistema.
+- `controllers`: receive raw events, parse input, validate payloads, authenticate users, and invoke the business layer.
+- `bo`: concentrate business rules for authentication, connections, conversations, and messages while depending only on abstractions.
+- `layers/main/nyx/interfaces`: define explicit capability-based contracts without coupling to a concrete technology.
+- `layers/main/nyx/interfaces/infrastructure`: defines the central `IInfrastructure` contract.
+- `layers/main/nyx/aws/dao` and `layers/main/nyx/aws/gateways`: encapsulate DynamoDB, SQS, and the API Gateway Management API.
+- `layers/main/nyx/aws/infrastructure`: contains `AwsInfrastructure`, responsible for providing concrete AWS DAOs and gateways without spreading imports across Lambda handlers.
+- `validators`: centralize `jsonschema` validation and standardized errors.
+- `functions/lambda`: contain only minimal Lambda entrypoints.
+- `layers/main/nyx`: holds the reusable application logic, infrastructure adapters, and system rules.
 
-Padroes aplicados:
+Applied patterns:
 
-- Valores categoricos de dominio usam `Enum`, como `MessageStatus` e `WebSocketAction`.
-- Models sao anemicos: apenas atributos, sem `to_dict`, `from_dict` ou qualquer logica de infraestrutura.
-- Conversao para DynamoDB acontece somente nos converters da camada DAO concreta.
-- Handlers Lambda usam decorator `@handler` para tratamento padronizado de erros e contexto.
-- Regras de negocio dependem de interfaces como `IUserDao`, `IMessageDao`, `IQueuePublisher`, `IWebSocketNotifier`, `IJwtService`, `IClock` e `IIdGenerator`.
-- `boto3` existe somente nas tables, DAOs e gateways concretos que realmente precisam dele.
-- Interfaces usam `ABC` e `@abstractmethod`, com contratos explicitos e consistentes em todo o projeto.
-- Os handlers instanciam uma unica infraestrutura `AwsInfrastructure` tipada como `IInfrastructure` e reutilizam essa instancia para obter DAOs e gateways.
-- `AwsInfrastructure` nao cria clients AWS; ele apenas entrega implementacoes concretas, e cada DAO/gateway instancia o recurso AWS que precisa.
-- O projeto nao usa `Protocol` nem `from __future__ import annotations`.
+- Domain categorical values use `Enum`, such as `MessageStatus` and `WebSocketAction`.
+- Models are intentionally anemic: attributes only, without `to_dict`, `from_dict`, or infrastructure-specific behavior.
+- DynamoDB conversion happens only inside concrete DAO converters.
+- Lambda handlers use a decorator for standardized error handling and request context binding.
+- Business rules depend on interfaces such as `IUserDao`, `IMessageDao`, `IQueuePublisher`, `IWebSocketNotifier`, `IJwtService`, `IClock`, and `IIdGenerator`.
+- `boto3` appears only in concrete tables, DAOs, and gateways that actually need it.
+- Interfaces use `ABC` and `@abstractmethod` with explicit and consistent contracts across the project.
+- Handlers instantiate a single `AwsInfrastructure` typed as `IInfrastructure` and reuse it to obtain DAOs and gateways.
+- `AwsInfrastructure` does not create shared AWS clients centrally; each DAO or gateway creates the AWS resource it needs.
+- The project intentionally avoids `Protocol` and `from __future__ import annotations`.
 
-## Fluxo do sistema
+## System Flow
 
-### Cadastro e login
+### Registration and Login
 
-1. O cliente envia `username`, `master_password_verifier`, salts/KDF params e o material criptografico do usuario.
-2. O backend persiste apenas o verificador derivado, nunca a master password em plaintext.
-3. No login, o cliente pede um challenge em `/auth/challenge`.
-4. O cliente deriva o verificador localmente e envia apenas `challenge_token` + `login_proof`.
-5. O backend valida a prova sem ver a master password e retorna JWT com o metadata necessario para o cliente destravar segredos locais.
+1. The client sends `username`, `master_password_verifier`, salts/KDF params, and encrypted user crypto material.
+2. The backend stores only the derived verifier, never the plaintext master password.
+3. During login, the client requests a challenge at `/auth/challenge`.
+4. The client derives the verifier locally and sends only `challenge_token` plus `login_proof`.
+5. The backend validates the proof without seeing the master password and returns a JWT with the metadata required for the client to unlock local secrets.
 
-### Segredo por conversa
+### Per-Conversation Secret
 
-1. Cada conversa possui sua propria password, seu proprio salt/KDF e um `unlock_check` cifrado.
-2. O cliente cifra a conversation password com uma chave derivada da master password.
-3. O backend armazena apenas:
-   - `participant_access` com `encrypted_conversation_password`
-   - salt e KDF da conversa
+1. Each conversation has its own password, its own salt/KDF metadata, and an encrypted `unlock_check`.
+2. The client encrypts the conversation password with a key derived from the master password.
+3. The backend stores only:
+   - `participant_access` entries with `encrypted_conversation_password`
+   - conversation salt and KDF metadata
    - `unlock_check`
-   - mensagens cifradas
-4. A conversa so e aberta no frontend depois que:
-   - a master password e validada localmente
-   - a conversation password e validada localmente
-   - o frontend deriva a chave da conversa e consegue descriptografar o `unlock_check`
+   - encrypted messages
+4. A conversation is only opened in the frontend after:
+   - the master password is validated locally
+   - the conversation password is validated locally
+   - the frontend derives the conversation key and successfully decrypts the `unlock_check`
 
 ### WebSocket
 
-1. O handler `connect/app.py` valida JWT durante o handshake.
-2. O backend associa `connectionId` ao usuario e salva a conexao ativa com TTL.
-3. O handler `src/functions/lambda/disconnect/app.py` remove a conexao ativa.
+1. The `connect/app.py` handler validates the JWT during the handshake.
+2. The backend associates the `connectionId` with the user and stores the active connection with a TTL.
+3. The `src/functions/lambda/disconnect/app.py` handler removes the active connection.
 
-### Mensagens
+### Messages
 
-1. O cliente envia payload ja criptografado.
-2. O handler `send_message/app.py` valida o schema, verifica o emissor autenticado e publica no SQS.
-3. O handler `process_message/app.py` aplica idempotencia por `message_id`, persiste a mensagem cifrada e tenta fan-out via API Gateway Management API.
-4. Se o destinatario estiver offline, a mensagem fica pendente.
-5. O cliente pode buscar mensagens pendentes e depois enviar ACK.
+1. The client sends an already encrypted payload.
+2. The `send_message/app.py` handler validates the schema, verifies the authenticated sender, and publishes the message to SQS.
+3. The `process_message/app.py` handler applies `message_id` idempotency, stores the encrypted message, and attempts fan-out through the API Gateway Management API.
+4. If the recipient is offline, the message remains pending.
+5. The client can fetch pending messages and later send an ACK.
 
-## Seguranca
+## Security
 
-- O backend nunca le plaintext.
-- `ciphertext`, `encrypted_message_key`, `encrypted_private_key` e `encrypted_conversation_password` sao tratados apenas como dados opacos.
-- A autenticacao usa verifier derivado com `PBKDF2-HMAC-SHA256` e challenge-based proof.
-- JWT possui expiracao.
-- Logs estruturados sanitizam senha, token, chaves e ciphertext.
-- Responses de erro sao padronizadas e nao expoem material sensivel.
+- The backend never reads plaintext content.
+- `ciphertext`, `encrypted_message_key`, `encrypted_private_key`, and `encrypted_conversation_password` are treated only as opaque blobs.
+- Authentication uses a derived verifier with `PBKDF2-HMAC-SHA256` plus a challenge-based proof.
+- JWT tokens expire.
+- Structured logs sanitize passwords, tokens, keys, and ciphertext.
+- Error responses are standardized and do not expose sensitive material.
 
-## Modelagem DynamoDB sugerida
+## Suggested DynamoDB Modeling
 
 - `users`
   - PK: `user_id`
-  - GSI: `username-index` com PK `username`
+  - GSI: `username-index` with PK `username`
 - `connections`
   - PK: `user_id`
   - SK: `connection_id`
-  - GSI: `connection-id-index` com PK `connection_id`
+  - GSI: `connection-id-index` with PK `connection_id`
 - `conversations`
   - PK: `conversation_id`
 - `messages`
   - PK: `conversation_id`
   - SK: `message_id`
-  - GSI: `recipient-status-index` com PK `recipient_id`
+  - GSI: `recipient-status-index` with PK `recipient_id`
 
-Para producao, vale evoluir o indice de mensagens com chave composta por status e data para buscas offline mais seletivas.
+For production, the message index should evolve toward a composite key that includes status and time to support more selective offline fetches.
 
 ## Handlers
 
@@ -137,18 +137,18 @@ Para producao, vale evoluir o indice de mensagens com chave composta por status 
 - `src/functions/lambda/fetch_pending_messages/app.py`
 - `src/functions/lambda/process_message/app.py`
 
-Cada `app.py` instancia explicitamente as dependencias que usa, sem container central.
+Each `app.py` wires the concrete dependencies it needs explicitly, without a central container.
 
-## Como rodar
+## How to Run
 
-1. Crie um ambiente virtual com Python 3.12+.
-2. Instale dependencias:
+1. Create a virtual environment with Python 3.12+.
+2. Install dependencies:
 
 ```bash
 pip install -e .[dev]
 ```
 
-3. Configure variaveis de ambiente:
+3. Configure environment variables:
 
 ```bash
 JWT_SECRET=change-this
@@ -161,23 +161,23 @@ MESSAGE_DELIVERY_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/nyx.
 WEBSOCKET_MANAGEMENT_ENDPOINT=https://your-api-id.execute-api.us-east-1.amazonaws.com/prod
 ```
 
-4. Rode os testes:
+4. Run the tests:
 
 ```bash
 pytest
 ```
 
-## Limitacoes do MVP
+## MVP Limitations
 
-- Ainda nao inclui IaC.
-- Ainda nao ha refresh token, rotacao de chaves ou revogacao de JWT.
-- A autorizacao por conversa pode ser expandida com politicas mais finas.
-- O tratamento de conexoes expiradas pode ser enriquecido com limpeza reativa e DLQ.
+- It does not yet include a separate infrastructure-as-code alternative beyond the current SAM template.
+- There is still no refresh token flow, key rotation, or JWT revocation.
+- Conversation authorization can be expanded with finer-grained policies.
+- Expired connection handling can be improved with reactive cleanup and stronger DLQ workflows.
 
-## Evolucoes futuras
+## Future Work
 
-- Adicionar AWS CDK ou Terraform.
-- Expandir testes com `moto` para integracao de DynamoDB e SQS.
-- Adicionar metricas, tracing e dashboards.
-- Implementar leitura por conversa com paginacao.
-- Incluir politicas de retencao e arquivamento.
+- Add AWS CDK or Terraform support.
+- Expand tests with `moto` for DynamoDB and SQS integration scenarios.
+- Add metrics, tracing, and dashboards.
+- Implement paginated conversation reads.
+- Introduce retention and archival policies.

@@ -14,7 +14,10 @@ def aws_handler(
     logger: ILogger,
     response_formatter: AwsResponseFormatter,
 ) -> Callable[[Callable[[dict, Any], dict]], Callable[[dict, Any], dict]]:
+    """Wrap Lambda handlers with consistent logging, timing, and error formatting."""
+
     def build_log_context(event: dict, context: Any, request_context: Any) -> dict[str, Any]:
+        """Extract the stable request fields that should be attached to every log."""
         request_data = event.get("requestContext", {}) if isinstance(event, dict) else {}
         http_data = request_data.get("http", {}) if isinstance(request_data, dict) else {}
         return {
@@ -29,6 +32,7 @@ def aws_handler(
     def decorator(function: Callable[[dict, Any], dict]) -> Callable[[dict, Any], dict]:
         @wraps(function)
         def wrapper(event: dict, context: Any) -> dict:
+            """Execute a Lambda handler under a bound request logging context."""
             request_context = build_aws_request_context(event)
             log_context = build_log_context(event, context, request_context)
             context_token = bind_log_context(log_context)

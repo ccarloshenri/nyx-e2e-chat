@@ -11,6 +11,8 @@ from src.layers.main.nyx.utils.serializers import serialize
 
 
 class AuthBO:
+    """Coordinate registration, challenge issuance, and login token generation."""
+
     def __init__(
         self,
         user_dao: IUserDao,
@@ -26,6 +28,7 @@ class AuthBO:
         self.clock = clock
 
     def register_user(self, payload: dict) -> dict:
+        """Persist a new user with verifier-based authentication and wrapped key material."""
         existing_user = self.user_dao.get_user_by_username(payload["username"])
         if existing_user is not None:
             raise ConflictError("User already exists")
@@ -51,6 +54,7 @@ class AuthBO:
         }
 
     def create_login_challenge(self, username: str) -> dict:
+        """Return the challenge payload the browser needs to prove master-password knowledge."""
         user = self.user_dao.get_user_by_username(username)
         if user is None:
             raise AuthenticationError("Invalid username or master password")
@@ -62,6 +66,7 @@ class AuthBO:
         return serialize(challenge)
 
     def login(self, payload: dict) -> dict:
+        """Verify the login proof and return the authenticated user bundle plus JWT."""
         user = self.user_dao.get_user_by_username(payload["username"])
         if user is None:
             raise AuthenticationError("Invalid username or master password")
@@ -87,6 +92,7 @@ class AuthBO:
         }
 
     def fetch_public_key(self, username: str) -> dict:
+        """Fetch the public key needed to encrypt payloads for another user."""
         user = self.user_dao.get_user_by_username(username)
         if user is None:
             raise NotFoundError("User not found")

@@ -19,6 +19,8 @@ LOGIN_CHALLENGE_TTL_SECONDS = 300
 
 
 class MasterPasswordAuthService(IMasterPasswordAuthService):
+    """Issue and verify challenge-based login proofs without receiving plaintext passwords."""
+
     def __init__(self, clock: IClock) -> None:
         self.clock = clock
 
@@ -28,6 +30,7 @@ class MasterPasswordAuthService(IMasterPasswordAuthService):
         master_password_salt: str,
         master_password_kdf_params: dict,
     ) -> LoginChallenge:
+        """Create a short-lived challenge token plus the KDF metadata required by the browser."""
         now = self.clock.now()
         expires_at = now + timedelta(seconds=LOGIN_CHALLENGE_TTL_SECONDS)
         nonce = base64.b64encode(os.urandom(32)).decode()
@@ -56,6 +59,7 @@ class MasterPasswordAuthService(IMasterPasswordAuthService):
         challenge_token: str,
         login_proof: str,
     ) -> None:
+        """Validate the browser proof using the stored verifier and challenge nonce."""
         try:
             payload = jwt.decode(challenge_token, settings.jwt_secret, algorithms=[JWT_ALGORITHM])
         except jwt.PyJWTError as exc:

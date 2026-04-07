@@ -17,6 +17,12 @@ const DEFAULT_SALT_BYTES = 16;
 const AES_IV_BYTES = 12;
 const UNLOCK_CHECK_VALUE = "nyx-conversation-unlock-check";
 
+/**
+ * Frontend-only crypto orchestration for authentication proofs, wrapped conversation
+ * secrets, and end-to-end message encryption. Plaintext secrets are handled only
+ * for the duration of the current operation and are never persisted by this service.
+ */
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
@@ -167,6 +173,7 @@ async function decryptPrivateKeyForValidation(
 }
 
 async function buildAccountRegistration(masterPassword: string) {
+  // The verifier authenticates the user without sending the plaintext master password.
   const authSalt = randomBytes(DEFAULT_SALT_BYTES);
   const secretWrapSalt = randomBytes(DEFAULT_SALT_BYTES);
   const privateKeyWrapSalt = randomBytes(DEFAULT_SALT_BYTES);
@@ -241,6 +248,7 @@ async function createLoginProof(
   masterPasswordSalt: string,
   masterPasswordKdfParams: Record<string, unknown>,
 ): Promise<string> {
+  // The proof signs the server nonce with material derived locally from the master password.
   const challengePayload = decodeJwtPayload(challengeToken);
   const nonce = String(challengePayload.nonce ?? "");
   if (!nonce) {
@@ -330,6 +338,7 @@ async function deriveConversationMessageKey(
 }
 
 async function createUnlockCheck(messageKey: CryptoKey): Promise<{ ciphertext: string; nonce: string }> {
+  // This encrypted constant lets the client verify the conversation password locally.
   const iv = randomBytes(AES_IV_BYTES);
   const ciphertext = await crypto.subtle.encrypt(
     {
@@ -367,6 +376,7 @@ async function verifyUnlockCheck(
 }
 
 function constantTimeEqual(left: string, right: string): boolean {
+  // Avoid short-circuit string comparison when checking local secret equality.
   const leftBytes = new TextEncoder().encode(left);
   const rightBytes = new TextEncoder().encode(right);
   if (leftBytes.length !== rightBytes.length) {
