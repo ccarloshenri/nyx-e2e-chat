@@ -12,9 +12,36 @@ class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
         super().__init__(conversations_table or ConversationsTable())
 
     def create_conversation(self, conversation: Conversation) -> None:
-        self.table.put_item(
-            Item=DynamoDbConversationConverter.to_dict(conversation),
-            ConditionExpression="attribute_not_exists(conversation_id)",
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "create_conversation",
+                "conversation_id": conversation.conversation_id,
+            },
+        )
+        try:
+            self.table.put_item(
+                Item=DynamoDbConversationConverter.to_dict(conversation),
+                ConditionExpression="attribute_not_exists(conversation_id)",
+            )
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "create_conversation",
+                    "conversation_id": conversation.conversation_id,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "create_conversation",
+                "conversation_id": conversation.conversation_id,
+            },
         )
 
     def get_conversation(self, conversation_id: str) -> Conversation | None:
@@ -30,4 +57,42 @@ class ConversationDynamoDbDao(BaseDynamoDbDao, IConversationDao):
             if user_id in item.get("participants", [])
         ]
         return sorted(conversations, key=lambda conversation: conversation.created_at, reverse=True)
+
+    def save_participant_access(self, conversation_id: str, user_id: str, access_payload: dict) -> None:
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "save_participant_access",
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+            },
+        )
+        try:
+            self.table.update_item(
+                Key={"conversation_id": conversation_id},
+                UpdateExpression="SET participant_access.#user_id = :access_payload",
+                ExpressionAttributeNames={"#user_id": user_id},
+                ExpressionAttributeValues={":access_payload": access_payload},
+            )
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "save_participant_access",
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "save_participant_access",
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+            },
+        )
 

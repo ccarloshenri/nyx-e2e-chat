@@ -9,11 +9,27 @@ def test_request_validator_accepts_valid_payload():
     validator = RequestValidator()
     payload = {
         "username": "alice",
-        "password": "super-secret-password",
+        "master_password_verifier": "v" * 44,
+        "master_password_salt": "salt-value-123456",
+        "master_password_kdf_params": {
+            "algorithm": "PBKDF2",
+            "iterations": 310000,
+            "hash": "SHA-256",
+        },
+        "secret_wrap_salt": "secret-salt-12345",
+        "secret_wrap_kdf_params": {
+            "algorithm": "PBKDF2",
+            "iterations": 310000,
+            "hash": "SHA-256",
+        },
         "public_key": "a" * 64,
         "encrypted_private_key": "b" * 64,
-        "kdf_salt": "salt-value-123456",
-        "kdf_params": {"algorithm": "argon2id", "iterations": 3},
+        "private_key_wrap_salt": "wrap-salt-value1",
+        "private_key_wrap_kdf_params": {
+            "algorithm": "PBKDF2",
+            "iterations": 310000,
+            "hash": "SHA-256",
+        },
     }
 
     validator.validate(REGISTER_USER_SCHEMA, payload)

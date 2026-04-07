@@ -12,5 +12,9 @@ class ILogger(ABC):
         pass
 
     @abstractmethod
+    def error(self, message: str, context: dict[str, Any] | None = None) -> None:
+        pass
+
+    @abstractmethod
     def exception(self, message: str, context: dict[str, Any] | None = None) -> None:
         pass

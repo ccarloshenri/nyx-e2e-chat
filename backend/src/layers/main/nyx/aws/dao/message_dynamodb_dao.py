@@ -13,7 +13,40 @@ class MessageDynamoDbDao(BaseDynamoDbDao, IMessageDao):
         super().__init__(messages_table or MessagesTable())
 
     def save_message(self, message: Message) -> None:
-        self.table.put_item(Item=DynamoDbMessageConverter.to_dict(message))
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "save_message",
+                "conversation_id": message.conversation_id,
+                "message_id": message.message_id,
+                "user_id": message.sender_id,
+            },
+        )
+        try:
+            self.table.put_item(Item=DynamoDbMessageConverter.to_dict(message))
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "save_message",
+                    "conversation_id": message.conversation_id,
+                    "message_id": message.message_id,
+                    "user_id": message.sender_id,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "save_message",
+                "conversation_id": message.conversation_id,
+                "message_id": message.message_id,
+                "user_id": message.sender_id,
+            },
+        )
 
     def get_message(self, conversation_id: str, message_id: str) -> Message | None:
         response = self.table.get_item(
@@ -32,16 +65,55 @@ class MessageDynamoDbDao(BaseDynamoDbDao, IMessageDao):
         )
         return [DynamoDbMessageConverter.from_dict(item) for item in response.get("Items", [])]
 
+    def list_messages_for_conversation(self, conversation_id: str) -> list[Message]:
+        response = self.table.query(
+            KeyConditionExpression=Key("conversation_id").eq(conversation_id),
+        )
+        return [DynamoDbMessageConverter.from_dict(item) for item in response.get("Items", [])]
+
     def update_message_status(
         self,
         conversation_id: str,
         message_id: str,
         status: MessageStatus,
     ) -> None:
-        self.table.update_item(
-            Key={"conversation_id": conversation_id, "message_id": message_id},
-            UpdateExpression="SET #status = :status",
-            ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={":status": status.value},
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "update_message_status",
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "status": status.value,
+            },
+        )
+        try:
+            self.table.update_item(
+                Key={"conversation_id": conversation_id, "message_id": message_id},
+                UpdateExpression="SET #status = :status",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={":status": status.value},
+            )
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "update_message_status",
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "status": status.value,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "update_message_status",
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "status": status.value,
+            },
         )
 

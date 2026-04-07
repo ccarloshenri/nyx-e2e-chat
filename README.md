@@ -12,6 +12,10 @@ Nyx is a secure real-time chat platform with a Python serverless backend and a R
 - [Frontend Local Testing](#frontend-local-testing)
 - [Deployment Workflow](#deployment-workflow)
 - [Environment Variables](#environment-variables)
+- [Master Password Model](#master-password-model)
+- [Conversation Password Model](#conversation-password-model)
+- [Logging And Observability](#logging-and-observability)
+- [Security Review](#security-review)
 - [AWS Deployment](#aws-deployment)
 - [Useful Links](#useful-links)
 
@@ -26,6 +30,65 @@ Nyx is designed for AWS deployment with:
 - JWT-based authentication
 
 The frontend is responsible for end-to-end encryption. The backend never decrypts message content.
+
+## Master Password Model
+
+Nyx now separates authentication from conversation decryption.
+
+- The user chooses a master password during signup.
+- The plaintext master password is handled only in the browser for the current operation.
+- The browser derives a verifier from the master password with PBKDF2 and sends only that verifier and KDF metadata to the backend.
+- The backend stores only:
+  - `master_password_verifier`
+  - `master_password_salt`
+  - `master_password_kdf_params`
+  - encrypted private key material and non-sensitive metadata
+- During login, the browser first requests `/auth/challenge`, derives the same verifier locally, and sends an HMAC proof over the server challenge.
+- The backend validates the proof without receiving the plaintext master password.
+
+What the frontend keeps:
+
+- JWT and non-sensitive crypto metadata in `localStorage`
+- decrypted conversation keys only in in-memory React state after a conversation is unlocked
+
+What the frontend does not keep:
+
+- plaintext master password in `localStorage`
+- plaintext master password in `sessionStorage`
+- plaintext master password in the backend
+
+## Conversation Password Model
+
+Each conversation has its own separate password and its own KDF metadata.
+
+Creation flow:
+
+- The creator enters:
+  - recipient username
+  - master password
+  - conversation password
+- The browser validates the master password locally by attempting to decrypt the user private key wrapper.
+- The browser derives a conversation message key from the conversation password and a per-conversation salt.
+- The browser creates an encrypted unlock check blob from that key.
+- The browser encrypts the conversation password with a key derived from the master password.
+- The backend stores only:
+  - encrypted conversation password blob per participant
+  - conversation salt / KDF metadata
+  - unlock check ciphertext / nonce
+  - encrypted message payloads
+
+Open flow:
+
+- The user enters the master password.
+- The browser validates it locally.
+- The user enters the conversation password.
+- The browser derives the conversation key, validates the unlock check, and only then decrypts messages.
+- If the participant has not saved their wrapped conversation secret yet, the browser wraps it locally and uploads only the encrypted blob.
+
+Important consequence:
+
+- The backend never knows the plaintext conversation password.
+- Messages stay encrypted in transit, in storage, and in the client until the chat is explicitly unlocked.
 
 ## Tech Stack
 
@@ -159,21 +222,37 @@ You will be asked for:
 - default region
 - output format
 
-### 3. Deploy the main stack
+### 3. Deploy the backend
 
 PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-backend.ps1
 ```
 
 Bash:
 
 ```bash
-bash scripts/deploy.sh
+bash scripts/deploy-backend.sh
 ```
 
-### 4. Test the deployed environment
+### 4. Deploy the frontend
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-frontend.ps1
+```
+
+Bash:
+
+```bash
+bash scripts/deploy-frontend.sh
+```
+
+The frontend deploy script tries to resolve the backend URL from the `nyx-main` CloudFormation stack. You can also override it by setting `VITE_API_BASE_URL` before running the script.
+
+### 5. Test the deployed environment
 
 After deployment:
 
@@ -240,9 +319,39 @@ Bash:
 ./scripts/setup.sh
 ```
 
-### Deploy script
+### Deploy scripts
 
-The deploy script always deploys the single main stack, then builds and uploads the frontend with the deployed backend URL when available.
+The deployment flow is now split so backend and frontend can be released independently. There is also a convenience script for full deploys.
+
+Backend only:
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-backend.ps1
+```
+
+Bash:
+
+```bash
+bash scripts/deploy-backend.sh
+```
+
+Frontend only:
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-frontend.ps1
+```
+
+Bash:
+
+```bash
+bash scripts/deploy-frontend.sh
+```
+
+Full deploy:
 
 PowerShell:
 
@@ -262,14 +371,13 @@ The fixed deployment targets are:
 - API stage: `main`
 - default tables and queues: `nyx-users`, `nyx-connections`, `nyx-conversations`, `nyx-messages`, `nyx-message-delivery.fifo`, `nyx-message-delivery-dlq.fifo`
 
-The deploy scripts create or reuse a frontend bucket and upload the frontend build to it. If `FRONTEND_BUCKET` is set, that exact bucket name is used. Otherwise the default name is `s3://nyx-frontend-<account-id>-<region>`.
+The frontend deploy scripts create or reuse a frontend bucket and upload the frontend build to it. If `FRONTEND_BUCKET` is set, that exact bucket name is used. Otherwise the default name is `s3://nyx-frontend-<account-id>-<region>`.
 
 High-level deploy flow:
 
-- build and deploy the backend with AWS SAM
-- resolve the `HttpApiUrl` output from the `nyx-main` stack
-- build the frontend with `VITE_API_BASE_URL` pointing to that deployed API
-- upload `frontend/dist/` to the configured S3 bucket
+- `deploy-backend`: build and deploy the backend with AWS SAM
+- `deploy-frontend`: resolve `VITE_API_BASE_URL` from the current environment or from the `HttpApiUrl` output of the `nyx-main` stack, then build and upload `frontend/dist/`
+- `deploy`: run backend deploy first, then frontend deploy
 
 ## Environment Variables
 
@@ -300,7 +408,98 @@ Important frontend variable:
 
 ```text
 VITE_API_BASE_URL=https://your-api-id.execute-api.your-region.amazonaws.com/main
+VITE_WEBSOCKET_URL=wss://your-websocket-id.execute-api.your-region.amazonaws.com/main
 ```
+
+## Logging And Observability
+
+Nyx uses structured JSON logs designed for CloudWatch Logs Insights and distributed tracing across HTTP, SQS, Lambda, WebSocket, and DynamoDB flows.
+
+Logging strategy:
+
+- all backend logs are emitted through the centralized utility in [backend/src/layers/main/nyx/utils/logger.py](./backend/src/layers/main/nyx/utils/logger.py)
+- every request starts with a bound request context using `correlation_id` and `request_id`
+- the same `correlation_id` is propagated into queued message payloads so the async processor can continue the same trace
+- infrastructure components such as SQS publishers, WebSocket notifiers, and DynamoDB DAOs emit logs in the same JSON shape
+
+Common log fields:
+
+- `timestamp`
+- `level`
+- `service`
+- `component`
+- `message`
+- `correlation_id`
+- `request_id`
+- `user_id` when available
+- `conversation_id` when available
+- `message_id` when available
+- latency fields such as `duration_ms` for timed operations
+
+Examples of logged operations:
+
+- request start / completion in Lambda handlers
+- user authentication attempts and outcomes
+- queue publish start / success
+- queue processing start / result
+- WebSocket connection lifecycle
+- delivery attempts to active connections
+- DynamoDB write attempts / successes / failures
+
+What is intentionally not logged:
+
+- plaintext messages
+- decrypted message content
+- master passwords
+- conversation passwords
+- raw encryption keys
+- wrapped or decrypted secrets
+- JWT access tokens
+
+Sensitive fields are sanitized before serialization, and unexpected exceptions include stack traces plus safe operational context so production debugging remains useful without exposing secrets.
+
+## Security Review
+
+Threat model:
+
+- The backend is treated as honest-but-curious storage and transport.
+- TLS is assumed for client-to-backend transport.
+- An attacker who steals backend database contents should see encrypted message payloads, salted verifiers, wrapped conversation secrets, and crypto metadata, but not plaintext secrets.
+
+What the backend can see:
+
+- usernames and user ids
+- conversation membership metadata
+- encrypted private keys
+- encrypted conversation-password wrappers
+- encrypted messages
+- salts, IVs, KDF parameters, and unlock-check metadata
+
+What the backend cannot see:
+
+- plaintext master password
+- plaintext conversation password
+- decrypted message content
+- conversation keys derived in the browser
+
+Why the master password is not persisted:
+
+- it is the root secret that protects wrapped conversation secrets
+- persisting it in browser storage would turn an XSS or local compromise into account-wide chat compromise
+- Nyx only uses it long enough to derive local keys or proofs, then clears the corresponding form state
+
+Why each conversation has its own secret:
+
+- compromise of one conversation password does not automatically expose every other chat
+- users can rotate or share a conversation secret independently of account login state
+- message decryption is gated per conversation instead of globally after login
+
+Security limitations and assumptions:
+
+- login proof is challenge-based, but it still assumes HTTPS and trusted client code delivery
+- decrypted conversation keys live in browser memory while a chat is unlocked
+- existing deployed users created under the older password model need re-registration or migration to adopt the new verifier-based flow cleanly
+- the current DynamoDB conversation listing still uses `Scan`, which is acceptable for MVP correctness but not ideal for scale
 
 ## AWS Deployment
 
@@ -332,6 +531,12 @@ $env:VITE_API_BASE_URL="https://your-api-id.execute-api.your-region.amazonaws.co
 npm run build
 aws s3 sync dist/ s3://YOUR_BUCKET
 ```
+
+Equivalent helper scripts:
+
+- backend only: `.\scripts\deploy-backend.ps1` or `bash scripts/deploy-backend.sh`
+- frontend only: `.\scripts\deploy-frontend.ps1` or `bash scripts/deploy-frontend.sh`
+- full deploy: `.\scripts\deploy.ps1` or `bash scripts/deploy.sh`
 
 ### How to validate after deploy
 

@@ -59,9 +59,25 @@ Padroes aplicados:
 
 ### Cadastro e login
 
-1. O cliente envia `username`, `password`, `public_key`, `encrypted_private_key`, `kdf_salt` e `kdf_params`.
-2. O backend valida com `jsonschema`, gera hash seguro da senha e persiste o material criptografico ja protegido.
-3. No login, retorna JWT com expiracao e os metadados criptograficos necessarios para o cliente recuperar sua chave privada protegida.
+1. O cliente envia `username`, `master_password_verifier`, salts/KDF params e o material criptografico do usuario.
+2. O backend persiste apenas o verificador derivado, nunca a master password em plaintext.
+3. No login, o cliente pede um challenge em `/auth/challenge`.
+4. O cliente deriva o verificador localmente e envia apenas `challenge_token` + `login_proof`.
+5. O backend valida a prova sem ver a master password e retorna JWT com o metadata necessario para o cliente destravar segredos locais.
+
+### Segredo por conversa
+
+1. Cada conversa possui sua propria password, seu proprio salt/KDF e um `unlock_check` cifrado.
+2. O cliente cifra a conversation password com uma chave derivada da master password.
+3. O backend armazena apenas:
+   - `participant_access` com `encrypted_conversation_password`
+   - salt e KDF da conversa
+   - `unlock_check`
+   - mensagens cifradas
+4. A conversa so e aberta no frontend depois que:
+   - a master password e validada localmente
+   - a conversation password e validada localmente
+   - o frontend deriva a chave da conversa e consegue descriptografar o `unlock_check`
 
 ### WebSocket
 
@@ -80,8 +96,8 @@ Padroes aplicados:
 ## Seguranca
 
 - O backend nunca le plaintext.
-- `ciphertext`, `encrypted_message_key` e `encrypted_private_key` sao tratados apenas como dados opacos.
-- Hash de senha usa `PBKDF2-HMAC-SHA256` com salt aleatorio.
+- `ciphertext`, `encrypted_message_key`, `encrypted_private_key` e `encrypted_conversation_password` sao tratados apenas como dados opacos.
+- A autenticacao usa verifier derivado com `PBKDF2-HMAC-SHA256` e challenge-based proof.
 - JWT possui expiracao.
 - Logs estruturados sanitizam senha, token, chaves e ciphertext.
 - Responses de erro sao padronizadas e nao expoem material sensivel.
@@ -108,8 +124,12 @@ Para producao, vale evoluir o indice de mensagens com chave composta por status 
 
 - `src/functions/lambda/register_user/app.py`
 - `src/functions/lambda/login/app.py`
+- `src/functions/lambda/create_login_challenge/app.py`
 - `src/functions/lambda/fetch_public_key/app.py`
 - `src/functions/lambda/create_conversation/app.py`
+- `src/functions/lambda/get_conversation_access/app.py`
+- `src/functions/lambda/save_conversation_access/app.py`
+- `src/functions/lambda/list_conversation_messages/app.py`
 - `src/functions/lambda/connect/app.py`
 - `src/functions/lambda/disconnect/app.py`
 - `src/functions/lambda/send_message/app.py`

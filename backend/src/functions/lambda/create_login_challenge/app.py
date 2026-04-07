@@ -1,8 +1,8 @@
+from src.layers.main.nyx.aws.aws_handler import aws_handler
 from src.layers.main.nyx.aws.aws_response_formatter import AwsResponseFormatter
+from src.layers.main.nyx.aws.infrastructure.aws_infrastructure import AwsInfrastructure
 from src.layers.main.nyx.bo.auth_bo import AuthBO
 from src.layers.main.nyx.controllers.auth_controller import AuthController
-from src.layers.main.nyx.aws.aws_handler import aws_handler
-from src.layers.main.nyx.aws.infrastructure.aws_infrastructure import AwsInfrastructure
 from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfrastructure
 from src.layers.main.nyx.services.jwt_token_service import JwtTokenService
 from src.layers.main.nyx.services.master_password_auth_service import MasterPasswordAuthService
@@ -37,4 +37,4 @@ controller = AuthController(
 
 @aws_handler(logger, response_formatter)
 def lambda_handler(event, context):
-    return controller.register_user(event)
+    return controller.create_login_challenge(event)

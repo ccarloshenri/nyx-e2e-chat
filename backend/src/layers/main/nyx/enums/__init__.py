@@ -16,4 +16,5 @@ class WebSocketAction(str, Enum):
 
 class EncryptionType(str, Enum):
     AES_GCM_V1 = "AES_GCM_V1"
+    AES_GCM_CONVERSATION_V1 = "AES_GCM_CONVERSATION_V1"
 

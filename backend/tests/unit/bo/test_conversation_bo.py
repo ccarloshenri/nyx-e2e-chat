@@ -17,11 +17,15 @@ def test_create_conversation_persists_and_serializes_result():
     user_dao.get_user_by_username.return_value = User(
         user_id="user-2",
         username="bob",
-        password_hash="hash",
+        master_password_verifier="verifier",
+        master_password_salt="salt",
+        master_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+        secret_wrap_salt="salt",
+        secret_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         public_key="pk",
         encrypted_private_key="enc",
-        kdf_salt="salt",
-        kdf_params={"algorithm": "pbkdf2", "iterations": 1},
+        private_key_wrap_salt="salt",
+        private_key_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         created_at="2026-01-01T00:00:00+00:00",
     )
     id_generator = MagicMock()
@@ -36,6 +40,14 @@ def test_create_conversation_persists_and_serializes_result():
     result = bo.create_conversation(
         {
             "target_username": "bob",
+            "conversation_password_salt": "conversation-salt-1",
+            "conversation_password_kdf_params": {"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+            "unlock_check_ciphertext": "ciphertext",
+            "unlock_check_nonce": "nonce",
+            "creator_access": {
+                "encrypted_conversation_password": "wrapped-password",
+                "nonce": "wrapped-nonce",
+            },
         },
         "user-1",
     )
@@ -51,6 +63,11 @@ def test_create_conversation_returns_existing_direct_conversation():
         Conversation(
             conversation_id="conv-existing",
             participants=["user-1", "user-2"],
+            conversation_password_salt="conversation-salt-1",
+            conversation_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+            unlock_check_ciphertext="ciphertext",
+            unlock_check_nonce="nonce",
+            participant_access={},
             created_at="2026-01-01T00:00:00+00:00",
         )
     ]
@@ -58,11 +75,15 @@ def test_create_conversation_returns_existing_direct_conversation():
     user_dao.get_user_by_username.return_value = User(
         user_id="user-2",
         username="bob",
-        password_hash="hash",
+        master_password_verifier="verifier",
+        master_password_salt="salt",
+        master_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+        secret_wrap_salt="salt",
+        secret_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         public_key="pk",
         encrypted_private_key="enc",
-        kdf_salt="salt",
-        kdf_params={"algorithm": "pbkdf2", "iterations": 1},
+        private_key_wrap_salt="salt",
+        private_key_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         created_at="2026-01-01T00:00:00+00:00",
     )
     bo = ConversationBO(
@@ -71,7 +92,20 @@ def test_create_conversation_returns_existing_direct_conversation():
         user_dao=user_dao,
     )
 
-    result = bo.create_conversation({"target_username": "bob"}, "user-1")
+    result = bo.create_conversation(
+        {
+            "target_username": "bob",
+            "conversation_password_salt": "conversation-salt-1",
+            "conversation_password_kdf_params": {"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+            "unlock_check_ciphertext": "ciphertext",
+            "unlock_check_nonce": "nonce",
+            "creator_access": {
+                "encrypted_conversation_password": "wrapped-password",
+                "nonce": "wrapped-nonce",
+            },
+        },
+        "user-1",
+    )
 
     conversation_dao.create_conversation.assert_not_called()
     assert result["conversation_id"] == "conv-existing"
@@ -83,11 +117,15 @@ def test_create_conversation_rejects_self_conversation():
     user_dao.get_user_by_username.return_value = User(
         user_id="user-1",
         username="alice",
-        password_hash="hash",
+        master_password_verifier="verifier",
+        master_password_salt="salt",
+        master_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+        secret_wrap_salt="salt",
+        secret_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         public_key="pk",
         encrypted_private_key="enc",
-        kdf_salt="salt",
-        kdf_params={"algorithm": "pbkdf2", "iterations": 1},
+        private_key_wrap_salt="salt",
+        private_key_wrap_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
         created_at="2026-01-01T00:00:00+00:00",
     )
     bo = ConversationBO(
@@ -97,7 +135,20 @@ def test_create_conversation_rejects_self_conversation():
     )
 
     with pytest.raises(ConflictError):
-        bo.create_conversation({"target_username": "alice"}, "user-1")
+        bo.create_conversation(
+            {
+                "target_username": "alice",
+                "conversation_password_salt": "conversation-salt-1",
+                "conversation_password_kdf_params": {"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+                "unlock_check_ciphertext": "ciphertext",
+                "unlock_check_nonce": "nonce",
+                "creator_access": {
+                    "encrypted_conversation_password": "wrapped-password",
+                    "nonce": "wrapped-nonce",
+                },
+            },
+            "user-1",
+        )
 
 
 def test_ensure_participant_raises_when_conversation_missing():
@@ -114,6 +165,11 @@ def test_ensure_participant_raises_when_user_not_in_conversation():
     conversation_dao.get_conversation.return_value = Conversation(
         conversation_id="conv-1",
         participants=["user-2", "user-3"],
+        conversation_password_salt="conversation-salt-1",
+        conversation_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+        unlock_check_ciphertext="ciphertext",
+        unlock_check_nonce="nonce",
+        participant_access={},
         created_at="2026-01-01T00:00:00+00:00",
     )
     bo = ConversationBO(conversation_dao=conversation_dao, clock=MagicMock())
@@ -128,11 +184,21 @@ def test_list_conversations_for_user_resolves_other_participant_names():
         Conversation(
             conversation_id="conv-1",
             participants=["user-1", "user-2"],
+            conversation_password_salt="conversation-salt-1",
+            conversation_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+            unlock_check_ciphertext="ciphertext",
+            unlock_check_nonce="nonce",
+            participant_access={"user-1": {"encrypted_conversation_password": "wrapped", "nonce": "nonce"}},
             created_at="2026-01-01T00:00:00+00:00",
         ),
         Conversation(
             conversation_id="conv-2",
             participants=["user-1", "user-2", "user-3"],
+            conversation_password_salt="conversation-salt-2",
+            conversation_password_kdf_params={"algorithm": "PBKDF2", "iterations": 1, "hash": "SHA-256"},
+            unlock_check_ciphertext="ciphertext",
+            unlock_check_nonce="nonce",
+            participant_access={},
             created_at="2026-01-02T00:00:00+00:00",
         ),
     ]

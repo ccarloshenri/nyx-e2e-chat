@@ -12,9 +12,24 @@ class UserDynamoDbDao(BaseDynamoDbDao, IUserDao):
         super().__init__(users_table or UsersTable())
 
     def create_user(self, user: User) -> None:
-        self.table.put_item(
-            Item=DynamoDbUserConverter.to_dict(user),
-            ConditionExpression="attribute_not_exists(user_id)",
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {"table_name": self.table_name, "operation": "create_user", "user_id": user.user_id},
+        )
+        try:
+            self.table.put_item(
+                Item=DynamoDbUserConverter.to_dict(user),
+                ConditionExpression="attribute_not_exists(user_id)",
+            )
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {"table_name": self.table_name, "operation": "create_user", "user_id": user.user_id},
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {"table_name": self.table_name, "operation": "create_user", "user_id": user.user_id},
         )
 
     def get_user_by_username(self, username: str) -> User | None:

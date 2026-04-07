@@ -2,7 +2,10 @@ from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.interfaces.dao.i_connection_dao import IConnectionDao
 from src.layers.main.nyx.interfaces.services.i_clock import IClock
 from src.layers.main.nyx.models.connection import Connection
+from src.layers.main.nyx.utils.logger import create_logger
 from src.layers.main.nyx.utils.serializers import serialize
+
+logger = create_logger(__name__)
 
 
 class ConnectionBO:
@@ -19,13 +22,22 @@ class ConnectionBO:
             ttl=int(now.timestamp()) + settings.connection_ttl_seconds,
         )
         self.connection_dao.upsert_connection(connection)
+        logger.info(
+            "websocket_connection_established_for_user",
+            {"user_id": user_id, "connection_id": connection_id},
+        )
         return serialize(connection)
 
     def disconnect(self, connection_id: str) -> None:
         connection = self.connection_dao.get_connection_by_id(connection_id)
         if connection is None:
+            logger.warning("websocket_disconnect_missing_connection", {"connection_id": connection_id})
             return
         self.connection_dao.delete_connection(connection.user_id, connection.connection_id)
+        logger.info(
+            "websocket_disconnected_for_user",
+            {"user_id": connection.user_id, "connection_id": connection.connection_id},
+        )
 
     def list_user_connections(self, user_id: str) -> list[Connection]:
         return self.connection_dao.get_connections_by_user(user_id)

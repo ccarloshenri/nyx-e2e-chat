@@ -18,6 +18,10 @@ class IMessageDao(ABC):
         pass
 
     @abstractmethod
+    def list_messages_for_conversation(self, conversation_id: str) -> list[Message]:
+        pass
+
+    @abstractmethod
     def update_message_status(
         self,
         conversation_id: str,

@@ -24,13 +24,13 @@ def test_register_user_validates_payload_and_returns_created_response():
         return_value=RequestContext(correlation_id="corr-1", request_id="req-1"),
     ), patch(
         "src.layers.main.nyx.controllers.auth_controller.parse_aws_json_body",
-        return_value={"username": "alice", "password": "secret"},
+        return_value={"username": "alice", "master_password_verifier": "v" * 44},
     ):
         response = controller.register_user({"body": json.dumps({})})
 
     controller.validator.validate.assert_called_once()
     controller.auth_bo.register_user.assert_called_once_with(
-        {"username": "alice", "password": "secret"}
+        {"username": "alice", "master_password_verifier": "v" * 44}
     )
     controller.logger.info.assert_called_once()
     controller.response_formatter.success_response.assert_called_once_with(
@@ -50,14 +50,33 @@ def test_login_returns_formatted_success_response():
         return_value=RequestContext(correlation_id="corr-1", request_id="req-1"),
     ), patch(
         "src.layers.main.nyx.controllers.auth_controller.parse_aws_json_body",
-        return_value={"username": "alice", "password": "secret"},
+        return_value={"username": "alice", "challenge_token": "token", "login_proof": "proof"},
     ):
         response = controller.login({"body": json.dumps({})})
 
     controller.validator.validate.assert_called_once()
     controller.auth_bo.login.assert_called_once_with(
-        {"username": "alice", "password": "secret"}
+        {"username": "alice", "challenge_token": "token", "login_proof": "proof"}
     )
+    assert response == {"statusCode": 200}
+
+
+def test_create_login_challenge_uses_username_from_request_payload():
+    controller = build_auth_controller()
+    controller.auth_bo.create_login_challenge.return_value = {"challenge_token": "token"}
+    controller.response_formatter.success_response.return_value = {"statusCode": 200}
+
+    with patch(
+        "src.layers.main.nyx.controllers.auth_controller.build_aws_request_context",
+        return_value=RequestContext(correlation_id="corr-1", request_id="req-1"),
+    ), patch(
+        "src.layers.main.nyx.controllers.auth_controller.parse_aws_json_body",
+        return_value={"username": "alice"},
+    ):
+        response = controller.create_login_challenge({"body": json.dumps({})})
+
+    controller.validator.validate.assert_called_once()
+    controller.auth_bo.create_login_challenge.assert_called_once_with("alice")
     assert response == {"statusCode": 200}
 
 

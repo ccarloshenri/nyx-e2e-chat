@@ -31,6 +31,7 @@ controller = ConversationController(
     conversation_bo=conversation_bo,
     validator=validator,
     jwt_service=jwt_service,
+    logger=logger,
     response_formatter=response_formatter,
 )
 

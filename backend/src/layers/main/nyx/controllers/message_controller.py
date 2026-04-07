@@ -4,8 +4,10 @@ from src.layers.main.nyx.aws.aws_response_formatter import AwsResponseFormatter
 from src.layers.main.nyx.bo.message_bo import MessageBO
 from src.layers.main.nyx.interfaces.services.i_jwt_service import IJwtService
 from src.layers.main.nyx.interfaces.services.i_logger import ILogger
+from src.layers.main.nyx.utils.logger import bind_log_context, reset_log_context
 from src.layers.main.nyx.validators.request_validator import RequestValidator
 from src.layers.main.nyx.validators.schemas.message_schemas import ACK_MESSAGE_SCHEMA, FETCH_PENDING_MESSAGES_SCHEMA, SEND_MESSAGE_SCHEMA
+from time import perf_counter
 
 
 class MessageController:
@@ -29,17 +31,39 @@ class MessageController:
             extract_aws_bearer_token(headers=event.get("headers"))
         )
         payload = parse_aws_json_body(event)
+        payload["correlation_id"] = context.correlation_id
+        if context.request_id:
+            payload["request_id"] = context.request_id
         self.validator.validate(SEND_MESSAGE_SCHEMA, payload)
-        result = self.message_bo.enqueue_message(payload, authenticated_user_id=auth.user_id)
-        self.logger.info(
-            "message_enqueued",
+        log_token = bind_log_context(
             {
                 "correlation_id": context.correlation_id,
+                "request_id": context.request_id,
                 "user_id": auth.user_id,
+                "conversation_id": payload["conversation_id"],
                 "message_id": payload["message_id"],
+            }
+        )
+        self.logger.info(
+            "message_send_requested",
+            {
+                "sender_id": auth.user_id,
+                "receiver_id": payload["recipient_id"],
             },
         )
-        return self.response_formatter.success_response(result, status_code=202)
+        try:
+            result = self.message_bo.enqueue_message(payload, authenticated_user_id=auth.user_id)
+            self.logger.info(
+                "message_sent_from_user_to_user",
+                {
+                    "sender_id": auth.user_id,
+                    "receiver_id": payload["recipient_id"],
+                    "status": result["status"],
+                },
+            )
+            return self.response_formatter.success_response(result, status_code=202)
+        finally:
+            reset_log_context(log_token)
 
     def ack_message(self, event: dict) -> dict:
         context = build_aws_request_context(event)
@@ -48,38 +72,108 @@ class MessageController:
         )
         payload = parse_aws_json_body(event)
         self.validator.validate(ACK_MESSAGE_SCHEMA, payload)
-        result = self.message_bo.ack_message(payload, user_id=auth.user_id)
-        self.logger.info(
-            "message_acknowledged",
+        log_token = bind_log_context(
             {
                 "correlation_id": context.correlation_id,
+                "request_id": context.request_id,
                 "user_id": auth.user_id,
+                "conversation_id": payload["conversation_id"],
                 "message_id": payload["message_id"],
-            },
+            }
         )
-        return self.response_formatter.success_response(result)
+        try:
+            result = self.message_bo.ack_message(payload, user_id=auth.user_id)
+            self.logger.info(
+                "message_acknowledged",
+                {
+                    "recipient_id": auth.user_id,
+                },
+            )
+            return self.response_formatter.success_response(result)
+        finally:
+            reset_log_context(log_token)
 
     def fetch_pending_messages(self, event: dict) -> dict:
+        context = build_aws_request_context(event)
         auth = self.jwt_service.decode_access_token(
             extract_aws_bearer_token(headers=event.get("headers"))
         )
         payload = {"user_id": auth.user_id}
         self.validator.validate(FETCH_PENDING_MESSAGES_SCHEMA, payload)
-        result = self.message_bo.fetch_pending_messages(auth.user_id)
-        return self.response_formatter.success_response(result)
+        log_token = bind_log_context(
+            {
+                "correlation_id": context.correlation_id,
+                "request_id": context.request_id,
+                "user_id": auth.user_id,
+            }
+        )
+        try:
+            result = self.message_bo.fetch_pending_messages(auth.user_id)
+            self.logger.info("pending_messages_fetched", {"message_count": result["count"]})
+            return self.response_formatter.success_response(result)
+        finally:
+            reset_log_context(log_token)
+
+    def list_messages_for_conversation(self, event: dict) -> dict:
+        context = build_aws_request_context(event)
+        auth = self.jwt_service.decode_access_token(
+            extract_aws_bearer_token(headers=event.get("headers"))
+        )
+        conversation_id = (event.get("pathParameters") or {}).get("conversation_id")
+        log_token = bind_log_context(
+            {
+                "correlation_id": context.correlation_id,
+                "request_id": context.request_id,
+                "user_id": auth.user_id,
+                "conversation_id": conversation_id,
+            }
+        )
+        try:
+            result = self.message_bo.list_messages_for_conversation(conversation_id, auth.user_id)
+            self.logger.info("conversation_messages_listed", {"message_count": result["count"]})
+            return self.response_formatter.success_response(result)
+        finally:
+            reset_log_context(log_token)
 
     def process_sqs_record(self, record: dict) -> dict:
         payload = parse_aws_json_body({"body": record["body"]})
         self.validator.validate(SEND_MESSAGE_SCHEMA, payload)
-        result = self.message_bo.process_queued_message(payload)
-        self.logger.info("message_processed", {"message_id": payload["message_id"]})
-        return result
+        log_token = bind_log_context(
+            {
+                "correlation_id": payload.get("correlation_id"),
+                "request_id": payload.get("request_id"),
+                "user_id": payload.get("sender_id"),
+                "conversation_id": payload.get("conversation_id"),
+                "message_id": payload.get("message_id"),
+                "queue_name": record.get("eventSourceARN", "").rsplit(":", maxsplit=1)[-1],
+            }
+        )
+        self.logger.info(
+            "processing_message_from_queue",
+            {"queue_name": record.get("eventSourceARN", "").rsplit(":", maxsplit=1)[-1]},
+        )
+        try:
+            result = self.message_bo.process_queued_message(payload)
+            self.logger.info(
+                "message_processed",
+                {
+                    "status": result["status"],
+                    "receiver_id": payload["recipient_id"],
+                },
+            )
+            return result
+        finally:
+            reset_log_context(log_token)
 
     def process_sqs_event(self, event: dict) -> dict:
+        started_at = perf_counter()
         results = []
         for record in event.get("Records", []):
             results.append(self.process_sqs_record(record))
 
-        self.logger.info("sqs_batch_processed", {"records": len(results)})
+        self.logger.info(
+            "sqs_batch_processed",
+            {"records": len(results), "duration_ms": round((perf_counter() - started_at) * 1000, 2)},
+        )
         return {"batchItemFailures": [], "results": results}
 

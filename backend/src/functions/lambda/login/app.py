@@ -4,11 +4,11 @@ from src.layers.main.nyx.controllers.auth_controller import AuthController
 from src.layers.main.nyx.aws.aws_handler import aws_handler
 from src.layers.main.nyx.aws.infrastructure.aws_infrastructure import AwsInfrastructure
 from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfrastructure
-from src.layers.main.nyx.utils.logger import create_logger
 from src.layers.main.nyx.services.jwt_token_service import JwtTokenService
-from src.layers.main.nyx.services.password_hasher import PasswordHasher
+from src.layers.main.nyx.services.master_password_auth_service import MasterPasswordAuthService
 from src.layers.main.nyx.services.system_clock import SystemClock
 from src.layers.main.nyx.services.uuid_generator import UuidGenerator
+from src.layers.main.nyx.utils.logger import create_logger
 from src.layers.main.nyx.validators.request_validator import RequestValidator
 
 infrastructure: IInfrastructure = AwsInfrastructure()
@@ -17,12 +17,12 @@ response_formatter = AwsResponseFormatter()
 clock = SystemClock()
 id_generator = UuidGenerator()
 validator = RequestValidator()
-password_hasher = PasswordHasher()
+master_password_auth_service = MasterPasswordAuthService(clock)
 jwt_service = JwtTokenService(clock, id_generator)
 user_dao = infrastructure.get_user_dao()
 auth_bo = AuthBO(
     user_dao=user_dao,
-    password_hasher=password_hasher,
+    master_password_auth_service=master_password_auth_service,
     jwt_service=jwt_service,
     id_generator=id_generator,
     clock=clock,

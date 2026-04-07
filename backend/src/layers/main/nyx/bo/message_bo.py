@@ -3,7 +3,10 @@ from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfr
 from src.layers.main.nyx.models.message import Message
 from src.layers.main.nyx.exceptions import AuthorizationError, InfrastructureError, NotFoundError
 from src.layers.main.nyx.utils.idempotency import IdempotencyService
+from src.layers.main.nyx.utils.logger import create_logger
 from src.layers.main.nyx.utils.serializers import serialize
+
+logger = create_logger(__name__)
 
 
 class MessageBO:
@@ -26,10 +29,25 @@ class MessageBO:
         self._ensure_conversation_access(payload["conversation_id"], authenticated_user_id)
         if self.queue_publisher is None:
             raise InfrastructureError("Queue publisher not configured")
+        logger.info(
+            "sending_message_to_queue",
+            {
+                "queue_name": payload.get("queue_name"),
+                "sender_id": payload["sender_id"],
+                "receiver_id": payload["recipient_id"],
+            },
+        )
         self.queue_publisher.publish(
             payload=payload,
             deduplication_id=payload["message_id"],
             group_id=payload["conversation_id"],
+        )
+        logger.info(
+            "message_enqueued_successfully",
+            {
+                "sender_id": payload["sender_id"],
+                "receiver_id": payload["recipient_id"],
+            },
         )
         return {
             "message_id": payload["message_id"],
@@ -42,6 +60,7 @@ class MessageBO:
             conversation_id=payload["conversation_id"],
             message_id=payload["message_id"],
         ):
+            logger.warning("duplicate_message_detected", {"status": "DUPLICATE"})
             return {"message_id": payload["message_id"], "status": "DUPLICATE"}
         message = Message(
             conversation_id=payload["conversation_id"],
@@ -60,10 +79,24 @@ class MessageBO:
         delivered = self._deliver_to_active_connections(message)
         final_status = MessageStatus.DELIVERED if delivered else MessageStatus.PENDING
         self.message_dao.update_message_status(message.conversation_id, message.message_id, final_status)
+        logger.info(
+            "message_sent_from_user_to_user",
+            {
+                "sender_id": message.sender_id,
+                "receiver_id": message.recipient_id,
+                "status": final_status.value,
+            },
+        )
         return {"message_id": message.message_id, "status": final_status.value}
 
     def fetch_pending_messages(self, user_id: str) -> dict:
         messages = self.message_dao.list_pending_messages_for_user(user_id)
+        serialized = serialize(messages)
+        return {"messages": serialized, "count": len(serialized)}
+
+    def list_messages_for_conversation(self, conversation_id: str, user_id: str) -> dict:
+        self._ensure_conversation_access(conversation_id, user_id)
+        messages = self.message_dao.list_messages_for_conversation(conversation_id)
         serialized = serialize(messages)
         return {"messages": serialized, "count": len(serialized)}
 
@@ -97,6 +130,14 @@ class MessageBO:
         pending = self.message_dao.list_pending_messages_for_user(user_id)
         delivered = 0
         for connection in connections:
+            logger.info(
+                "sending_message_to_active_connection",
+                {
+                    "user_id": user_id,
+                    "connection_id": connection.connection_id,
+                    "pending_count": len(pending),
+                },
+            )
             self.websocket_notifier.notify(
                 connection.connection_id,
                 {
@@ -113,6 +154,13 @@ class MessageBO:
             return delivered
         for connection in self.connection_dao.get_connections_by_user(message.recipient_id):
             try:
+                logger.info(
+                    "sending_message_to_active_connection",
+                    {
+                        "receiver_id": message.recipient_id,
+                        "connection_id": connection.connection_id,
+                    },
+                )
                 self.websocket_notifier.notify(
                     connection.connection_id,
                     {
@@ -120,8 +168,22 @@ class MessageBO:
                         "message": serialize(message),
                     },
                 )
+                logger.info(
+                    "message_delivered_to_user",
+                    {
+                        "receiver_id": message.recipient_id,
+                        "connection_id": connection.connection_id,
+                    },
+                )
                 delivered = True
             except Exception:
+                logger.exception(
+                    "websocket_delivery_failed",
+                    {
+                        "receiver_id": message.recipient_id,
+                        "connection_id": connection.connection_id,
+                    },
+                )
                 continue
         return delivered
 

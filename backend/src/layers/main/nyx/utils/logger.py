@@ -1,13 +1,33 @@
 import json
 import logging
+import traceback
+from contextvars import ContextVar, Token
+from datetime import UTC, datetime
 from typing import Any
 
 from src.layers.main.nyx.config.settings import settings
 from src.layers.main.nyx.interfaces.services.i_logger import ILogger
 
+_LOG_CONTEXT: ContextVar[dict[str, Any]] = ContextVar("nyx_log_context", default={})
+
 SENSITIVE_KEYS = {
     "password",
     "password_hash",
+    "master_password_verifier",
+    "master_password_salt",
+    "master_password_kdf_params",
+    "secret_wrap_salt",
+    "secret_wrap_kdf_params",
+    "private_key_wrap_salt",
+    "private_key_wrap_kdf_params",
+    "encrypted_conversation_password",
+    "conversation_password",
+    "conversation_password_salt",
+    "conversation_password_kdf_params",
+    "unlock_check_ciphertext",
+    "unlock_check_nonce",
+    "challenge_token",
+    "login_proof",
     "ciphertext",
     "encrypted_private_key",
     "encrypted_message_key",
@@ -15,6 +35,23 @@ SENSITIVE_KEYS = {
     "token",
     "access_token",
 }
+
+LEVEL_MAPPING = {
+    "WARNING": "WARN",
+}
+
+
+def bind_log_context(context: dict[str, Any] | None = None) -> Token:
+    merged_context = {**_LOG_CONTEXT.get({}), **(context or {})}
+    return _LOG_CONTEXT.set(merged_context)
+
+
+def reset_log_context(token: Token) -> None:
+    _LOG_CONTEXT.reset(token)
+
+
+def get_log_context() -> dict[str, Any]:
+    return dict(_LOG_CONTEXT.get({}))
 
 
 def _sanitize(value: Any) -> Any:
@@ -31,12 +68,23 @@ def _sanitize(value: Any) -> Any:
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "level": record.levelname,
-            "logger": record.name,
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+            "level": LEVEL_MAPPING.get(record.levelname, record.levelname),
+            "service": settings.service_name,
+            "component": record.name,
             "message": record.getMessage(),
         }
-        if hasattr(record, "context") and isinstance(record.context, dict):
-            payload.update(_sanitize(record.context))
+        combined_context = {
+            **get_log_context(),
+            **(record.context if hasattr(record, "context") and isinstance(record.context, dict) else {}),
+        }
+        if combined_context:
+            payload.update(_sanitize(combined_context))
+        if record.exc_info:
+            exception_type, exception, _ = record.exc_info
+            payload["exception_type"] = getattr(exception_type, "__name__", "UnknownException")
+            payload["exception_message"] = str(exception)
+            payload["stack_trace"] = "".join(traceback.format_exception(*record.exc_info))
         return json.dumps(payload, default=str)
 
 
@@ -61,6 +109,9 @@ class StructuredLogger(ILogger):
 
     def warning(self, message: str, context: dict[str, Any] | None = None) -> None:
         self._logger.warning(message, extra={"context": context or {}})
+
+    def error(self, message: str, context: dict[str, Any] | None = None) -> None:
+        self._logger.error(message, extra={"context": context or {}})
 
     def exception(self, message: str, context: dict[str, Any] | None = None) -> None:
         self._logger.exception(message, extra={"context": context or {}})

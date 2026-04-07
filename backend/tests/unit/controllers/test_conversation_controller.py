@@ -9,6 +9,7 @@ def build_controller():
         conversation_bo=MagicMock(),
         validator=MagicMock(),
         jwt_service=MagicMock(),
+        logger=MagicMock(),
         response_formatter=MagicMock(),
     )
 
@@ -24,6 +25,9 @@ def test_create_conversation_returns_created_response():
     controller.response_formatter.success_response.return_value = {"statusCode": 201}
 
     with patch(
+        "src.layers.main.nyx.controllers.conversation_controller.build_aws_request_context",
+        return_value=MagicMock(correlation_id="corr-1", request_id="req-1"),
+    ), patch(
         "src.layers.main.nyx.controllers.conversation_controller.parse_aws_json_body",
         return_value={"target_username": "bob"},
     ), patch(
@@ -41,6 +45,7 @@ def test_create_conversation_returns_created_response():
         {"conversation_id": "conv-1"},
         status_code=201,
     )
+    assert controller.logger.info.call_count == 4
     assert response == {"statusCode": 201}
 
 
@@ -58,10 +63,14 @@ def test_list_conversations_uses_authenticated_user():
     controller.response_formatter.success_response.return_value = {"statusCode": 200}
 
     with patch(
+        "src.layers.main.nyx.controllers.conversation_controller.build_aws_request_context",
+        return_value=MagicMock(correlation_id="corr-1", request_id="req-1"),
+    ), patch(
         "src.layers.main.nyx.controllers.conversation_controller.extract_aws_bearer_token",
         return_value="token",
     ):
         response = controller.list_conversations({"headers": {"Authorization": "Bearer token"}})
 
     controller.conversation_bo.list_conversations_for_user.assert_called_once_with("user-1")
+    assert controller.logger.info.call_count == 2
     assert response == {"statusCode": 200}

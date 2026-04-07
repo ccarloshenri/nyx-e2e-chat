@@ -17,7 +17,7 @@ class Settings:
     conversations_table_name: str = os.getenv("CONVERSATIONS_TABLE_NAME", "nyx-conversations")
     messages_table_name: str = os.getenv("MESSAGES_TABLE_NAME", "nyx-messages")
     message_delivery_queue_url: str = os.getenv("MESSAGE_DELIVERY_QUEUE_URL", "")
-    jwt_secret: str = os.getenv("JWT_SECRET", "change-me")
+    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-please-use-a-32-byte-secret")
     jwt_exp_minutes: int = int(os.getenv("JWT_EXP_MINUTES", str(DEFAULT_JWT_EXP_MINUTES)))
     websocket_management_endpoint: str = os.getenv("WEBSOCKET_MANAGEMENT_ENDPOINT", "")
     connection_ttl_seconds: int = int(

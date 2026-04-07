@@ -14,10 +14,70 @@ class ConnectionDynamoDbDao(BaseDynamoDbDao, IConnectionDao):
         super().__init__(connections_table or ConnectionsTable())
 
     def upsert_connection(self, connection: Connection) -> None:
-        self.table.put_item(Item=DynamoDbConnectionConverter.to_dict(connection))
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "upsert_connection",
+                "user_id": connection.user_id,
+                "connection_id": connection.connection_id,
+            },
+        )
+        try:
+            self.table.put_item(Item=DynamoDbConnectionConverter.to_dict(connection))
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "upsert_connection",
+                    "user_id": connection.user_id,
+                    "connection_id": connection.connection_id,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "upsert_connection",
+                "user_id": connection.user_id,
+                "connection_id": connection.connection_id,
+            },
+        )
 
     def delete_connection(self, user_id: str, connection_id: str) -> None:
-        self.table.delete_item(Key={"user_id": user_id, "connection_id": connection_id})
+        self.logger.info(
+            "writing_item_to_dynamodb",
+            {
+                "table_name": self.table_name,
+                "operation": "delete_connection",
+                "user_id": user_id,
+                "connection_id": connection_id,
+            },
+        )
+        try:
+            self.table.delete_item(Key={"user_id": user_id, "connection_id": connection_id})
+        except Exception:
+            self.logger.exception(
+                "failed_to_write_item_to_dynamodb",
+                {
+                    "table_name": self.table_name,
+                    "operation": "delete_connection",
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                },
+            )
+            raise
+        self.logger.info(
+            "item_stored_successfully",
+            {
+                "table_name": self.table_name,
+                "operation": "delete_connection",
+                "user_id": user_id,
+                "connection_id": connection_id,
+            },
+        )
 
     def get_connections_by_user(self, user_id: str) -> list[Connection]:
         response = self.table.query(KeyConditionExpression=Key("user_id").eq(user_id))

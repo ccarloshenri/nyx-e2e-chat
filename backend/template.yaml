@@ -10,7 +10,7 @@ Parameters:
   JwtSecret:
     Type: String
     NoEcho: true
-    Default: change-me-in-production
+    Default: change-me-in-production-32-byte-key
     Description: Secret used to sign JWT access tokens.
   JwtExpMinutes:
     Type: Number
@@ -259,6 +259,31 @@ Resources:
             Path: /auth/login
             Method: POST
 
+  CreateLoginChallengeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-create-login-challenge
+      Handler: src.functions.lambda.create_login_challenge.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: UsersChallengeReadAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
+      Events:
+        CreateLoginChallengeApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /auth/challenge
+            Method: POST
+
   FetchPublicKeyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -298,7 +323,16 @@ Resources:
               Action:
                 - dynamodb:PutItem
                 - dynamodb:GetItem
+                - dynamodb:Scan
               Resource: !GetAtt ConversationsTable.Arn
+            - Sid: UsersLookupAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
       Events:
         CreateConversationApi:
           Type: HttpApi
@@ -322,6 +356,14 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:Scan
               Resource: !GetAtt ConversationsTable.Arn
+            - Sid: UsersReadAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !Sub ${UsersTable.Arn}/index/*
       Events:
         ListConversationsApi:
           Type: HttpApi
@@ -329,6 +371,51 @@ Resources:
             ApiId: !Ref NyxHttpApi
             Path: /conversations
             Method: GET
+
+  GetConversationAccessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-get-conversation-access
+      Handler: src.functions.lambda.get_conversation_access.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConversationsAccessRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt ConversationsTable.Arn
+      Events:
+        GetConversationAccessApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /conversations/{conversation_id}/access
+            Method: GET
+
+  SaveConversationAccessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-save-conversation-access
+      Handler: src.functions.lambda.save_conversation_access.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ConversationsAccessWrite
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ConversationsTable.Arn
+      Events:
+        SaveConversationAccessApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /conversations/{conversation_id}/access
+            Method: POST
 
   SendMessageFunction:
     Type: AWS::Serverless::Function
@@ -405,6 +492,36 @@ Resources:
           Properties:
             ApiId: !Ref NyxHttpApi
             Path: /messages/pending
+            Method: GET
+
+  ListConversationMessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-list-conversation-messages
+      Handler: src.functions.lambda.list_conversation_messages.app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: MessagesConversationRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt MessagesTable.Arn
+                - !Sub ${MessagesTable.Arn}/index/*
+            - Sid: ConversationMembershipRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt ConversationsTable.Arn
+      Events:
+        ListConversationMessagesApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref NyxHttpApi
+            Path: /conversations/{conversation_id}/messages
             Method: GET
 
   ProcessMessageFunction:

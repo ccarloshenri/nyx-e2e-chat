@@ -1,11 +1,10 @@
-from src.layers.main.nyx.aws.aws_response_formatter import AwsResponseFormatter
-from src.layers.main.nyx.bo.auth_bo import AuthBO
-from src.layers.main.nyx.controllers.auth_controller import AuthController
 from src.layers.main.nyx.aws.aws_handler import aws_handler
+from src.layers.main.nyx.aws.aws_response_formatter import AwsResponseFormatter
 from src.layers.main.nyx.aws.infrastructure.aws_infrastructure import AwsInfrastructure
+from src.layers.main.nyx.bo.message_bo import MessageBO
+from src.layers.main.nyx.controllers.message_controller import MessageController
 from src.layers.main.nyx.interfaces.infrastructure.i_infrastructure import IInfrastructure
 from src.layers.main.nyx.services.jwt_token_service import JwtTokenService
-from src.layers.main.nyx.services.master_password_auth_service import MasterPasswordAuthService
 from src.layers.main.nyx.services.system_clock import SystemClock
 from src.layers.main.nyx.services.uuid_generator import UuidGenerator
 from src.layers.main.nyx.utils.logger import create_logger
@@ -17,19 +16,14 @@ response_formatter = AwsResponseFormatter()
 clock = SystemClock()
 id_generator = UuidGenerator()
 validator = RequestValidator()
-master_password_auth_service = MasterPasswordAuthService(clock)
 jwt_service = JwtTokenService(clock, id_generator)
-user_dao = infrastructure.get_user_dao()
-auth_bo = AuthBO(
-    user_dao=user_dao,
-    master_password_auth_service=master_password_auth_service,
-    jwt_service=jwt_service,
-    id_generator=id_generator,
-    clock=clock,
+message_bo = MessageBO(
+    infrastructure=infrastructure,
 )
-controller = AuthController(
-    auth_bo=auth_bo,
+controller = MessageController(
+    message_bo=message_bo,
     validator=validator,
+    jwt_service=jwt_service,
     logger=logger,
     response_formatter=response_formatter,
 )
@@ -37,4 +31,4 @@ controller = AuthController(
 
 @aws_handler(logger, response_formatter)
 def lambda_handler(event, context):
-    return controller.register_user(event)
+    return controller.list_messages_for_conversation(event)

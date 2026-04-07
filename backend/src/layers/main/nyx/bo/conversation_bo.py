@@ -46,6 +46,11 @@ class ConversationBO:
         conversation = Conversation(
             conversation_id=self.id_generator.new_id(),
             participants=[authenticated_user_id, target_user.user_id],
+            conversation_password_salt=payload["conversation_password_salt"],
+            conversation_password_kdf_params=payload["conversation_password_kdf_params"],
+            unlock_check_ciphertext=payload["unlock_check_ciphertext"],
+            unlock_check_nonce=payload["unlock_check_nonce"],
+            participant_access={authenticated_user_id: payload["creator_access"]},
             created_at=self.clock.now_iso(),
         )
         self.conversation_dao.create_conversation(conversation)
@@ -69,10 +74,32 @@ class ConversationBO:
                 "updatedAt": conversation.created_at,
                 "unreadCount": 0,
                 "participantLabel": self._build_participant_label(conversation),
+                "hasStoredSecret": user_id in conversation.participant_access,
             }
             for conversation in conversations
         ]
         return {"conversations": serialized, "count": len(serialized)}
+
+    def get_conversation_access_context(self, conversation_id: str, user_id: str) -> dict:
+        conversation = self.ensure_participant(conversation_id, user_id)
+        return {
+            "conversation_id": conversation.conversation_id,
+            "conversation_password_salt": conversation.conversation_password_salt,
+            "conversation_password_kdf_params": conversation.conversation_password_kdf_params,
+            "unlock_check_ciphertext": conversation.unlock_check_ciphertext,
+            "unlock_check_nonce": conversation.unlock_check_nonce,
+            "participant_access": conversation.participant_access.get(user_id),
+            "has_stored_secret": user_id in conversation.participant_access,
+        }
+
+    def save_participant_access(self, conversation_id: str, user_id: str, access_payload: dict) -> dict:
+        self.ensure_participant(conversation_id, user_id)
+        self.conversation_dao.save_participant_access(conversation_id, user_id, access_payload)
+        return {
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "has_stored_secret": True,
+        }
 
     def _build_title(self, conversation: Conversation, user_id: str) -> str:
         other_participants = [
