@@ -57,7 +57,7 @@ def test_enqueue_message_rejects_sender_mismatch():
     )
 
     with pytest.raises(AuthorizationError):
-        bo.enqueue_message(
+        bo.authorize_message_payload(
             {
                 "conversation_id": "conv-1",
                 "sender_id": "user-a",
@@ -104,11 +104,10 @@ def test_ack_message_checks_recipient():
         )
 
 
-def test_enqueue_message_publishes_when_user_is_conversation_participant():
+def test_enqueue_message_for_async_validation_publishes_raw_request():
     message_dao = MagicMock()
     connection_dao = MagicMock()
     conversation_dao = MagicMock()
-    conversation_dao.get_conversation.return_value = MagicMock(participants=["user-a", "user-b"])
     queue_publisher = MagicMock()
     infrastructure = FakeInfrastructure(
         message_dao=message_dao,
@@ -119,33 +118,27 @@ def test_enqueue_message_publishes_when_user_is_conversation_participant():
     )
     bo = MessageBO(infrastructure=infrastructure)
 
-    result = bo.enqueue_message(
-        {
-            "conversation_id": "conv-1",
-            "sender_id": "user-a",
-            "recipient_id": "user-b",
-            "encryption_type": "AES_GCM_V1",
-            "ciphertext": "cipher",
-            "encrypted_message_key": "key",
-            "nonce": "nonce",
-            "message_id": "msg-1",
-            "created_at": "2026-01-01T00:00:00+00:00",
-        },
-        authenticated_user_id="user-a",
+    payload = {
+        "conversation_id": "conv-1",
+        "sender_id": "user-a",
+        "recipient_id": "user-b",
+        "encryption_type": "AES_GCM_V1",
+        "ciphertext": "cipher",
+        "encrypted_message_key": "key",
+        "nonce": "nonce",
+        "message_id": "msg-1",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    result = bo.enqueue_message_for_async_validation(
+        payload=payload,
+        auth_token="token-123",
+        deduplication_id="msg-1",
+        group_id="conv-1",
     )
 
     queue_publisher.publish.assert_called_once_with(
-        payload={
-            "conversation_id": "conv-1",
-            "sender_id": "user-a",
-            "recipient_id": "user-b",
-            "encryption_type": "AES_GCM_V1",
-            "ciphertext": "cipher",
-            "encrypted_message_key": "key",
-            "nonce": "nonce",
-            "message_id": "msg-1",
-            "created_at": "2026-01-01T00:00:00+00:00",
-        },
+        payload={"auth_token": "token-123", "payload": payload},
         deduplication_id="msg-1",
         group_id="conv-1",
     )

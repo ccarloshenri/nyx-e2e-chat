@@ -33,6 +33,18 @@ SEND_MESSAGE_SCHEMA = {
     },
 }
 
+QUEUED_SEND_MESSAGE_SCHEMA = {
+    "type": "object",
+    "required": ["auth_token", "payload"],
+    "additionalProperties": False,
+    "properties": {
+        "auth_token": {"type": "string", "minLength": 1},
+        "payload": {
+            "type": "object",
+        },
+    },
+}
+
 ACK_MESSAGE_SCHEMA = {
     "type": "object",
     "required": ["conversation_id", "message_id", "received_at"],

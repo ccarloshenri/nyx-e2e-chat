@@ -58,9 +58,14 @@ class AuthController:
         self.logger.info("user_authentication_attempt", {"username": payload["username"]})
         try:
             result = self.auth_bo.login(payload)
+            user_id = None
+            if isinstance(result, dict):
+                user = result.get("user")
+                if isinstance(user, dict):
+                    user_id = user.get("user_id")
             self.logger.info(
                 "user_authenticated_successfully",
-                {"username": payload["username"], "user_id": result["user"]["user_id"]},
+                {"username": payload["username"], "user_id": user_id},
             )
             return self.response_formatter.success_response(result)
         except AuthenticationError:

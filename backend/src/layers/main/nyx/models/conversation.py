@@ -10,6 +10,6 @@ class Conversation:
     conversation_password_kdf_params: dict[str, Any]
     unlock_check_ciphertext: str
     unlock_check_nonce: str
-    participant_access: dict[str, dict[str, Any]] = field(default_factory=dict)
     created_at: str
+    participant_access: dict[str, dict[str, Any]] = field(default_factory=dict)
 

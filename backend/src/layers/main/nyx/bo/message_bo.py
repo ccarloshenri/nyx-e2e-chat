@@ -25,13 +25,21 @@ class MessageBO:
         self.websocket_notifier = infrastructure.get_websocket_notifier()
         self.idempotency_service = idempotency_service or IdempotencyService(self.message_dao)
 
-    def enqueue_message(self, payload: dict, authenticated_user_id: str) -> dict:
-        """Authorize the sender and enqueue an encrypted message for async delivery."""
-        if payload["sender_id"] != authenticated_user_id:
-            raise AuthorizationError("Sender does not match authenticated user")
-        self._ensure_conversation_access(payload["conversation_id"], authenticated_user_id)
+    def enqueue_message_for_async_validation(
+        self,
+        *,
+        payload: dict,
+        auth_token: str,
+        deduplication_id: str,
+        group_id: str,
+    ) -> dict:
+        """Push the raw request to the queue so validation can happen off the synchronous path."""
         if self.queue_publisher is None:
             raise InfrastructureError("Queue publisher not configured")
+        queue_payload = {
+            "auth_token": auth_token,
+            "payload": payload,
+        }
         logger.info(
             "sending_message_to_queue",
             {
@@ -41,9 +49,9 @@ class MessageBO:
             },
         )
         self.queue_publisher.publish(
-            payload=payload,
-            deduplication_id=payload["message_id"],
-            group_id=payload["conversation_id"],
+            payload=queue_payload,
+            deduplication_id=deduplication_id,
+            group_id=group_id,
         )
         logger.info(
             "message_enqueued_successfully",
@@ -57,6 +65,12 @@ class MessageBO:
             "conversation_id": payload["conversation_id"],
             "status": MessageStatus.QUEUED.value,
         }
+
+    def authorize_message_payload(self, payload: dict, authenticated_user_id: str) -> None:
+        """Validate sender ownership and conversation membership before processing the queued message."""
+        if payload["sender_id"] != authenticated_user_id:
+            raise AuthorizationError("Sender does not match authenticated user")
+        self._ensure_conversation_access(payload["conversation_id"], authenticated_user_id)
 
     def process_queued_message(self, payload: dict) -> dict:
         """Persist an enqueued message and attempt immediate delivery to active connections."""

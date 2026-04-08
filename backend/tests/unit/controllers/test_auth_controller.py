@@ -42,7 +42,10 @@ def test_register_user_validates_payload_and_returns_created_response():
 
 def test_login_returns_formatted_success_response():
     controller = build_auth_controller()
-    controller.auth_bo.login.return_value = {"token": {"access_token": "token"}}
+    controller.auth_bo.login.return_value = {
+        "token": {"access_token": "token"},
+        "user": {"user_id": "user-1"},
+    }
     controller.response_formatter.success_response.return_value = {"statusCode": 200}
 
     with patch(
@@ -57,6 +60,10 @@ def test_login_returns_formatted_success_response():
     controller.validator.validate.assert_called_once()
     controller.auth_bo.login.assert_called_once_with(
         {"username": "alice", "challenge_token": "token", "login_proof": "proof"}
+    )
+    controller.logger.info.assert_any_call(
+        "user_authenticated_successfully",
+        {"username": "alice", "user_id": "user-1"},
     )
     assert response == {"statusCode": 200}
 

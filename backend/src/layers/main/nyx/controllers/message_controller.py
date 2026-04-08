@@ -11,6 +11,7 @@ from time import perf_counter
 from src.layers.main.nyx.validators.schemas.message_schemas import (
     ACK_MESSAGE_SCHEMA,
     FETCH_PENDING_MESSAGES_SCHEMA,
+    QUEUED_SEND_MESSAGE_SCHEMA,
     SEND_MESSAGE_SCHEMA,
 )
 
@@ -33,21 +34,18 @@ class MessageController:
         self.response_formatter = response_formatter
 
     def send_message(self, event: dict) -> dict:
-        """Validate an outgoing encrypted message request and enqueue it for delivery."""
+        """Enqueue an outgoing message quickly and defer validation to the async processor."""
         context = build_aws_request_context(event)
-        auth = self.jwt_service.decode_access_token(
-            extract_aws_bearer_token(headers=event.get("headers"))
-        )
+        token = extract_aws_bearer_token(headers=event.get("headers"))
         payload = parse_aws_json_body(event)
         payload["correlation_id"] = context.correlation_id
         if context.request_id:
             payload["request_id"] = context.request_id
-        self.validator.validate(SEND_MESSAGE_SCHEMA, payload)
         log_token = bind_log_context(
             {
                 "correlation_id": context.correlation_id,
                 "request_id": context.request_id,
-                "user_id": auth.user_id,
+                "user_id": None,
                 "conversation_id": payload["conversation_id"],
                 "message_id": payload["message_id"],
             }
@@ -55,16 +53,21 @@ class MessageController:
         self.logger.info(
             "message_send_requested",
             {
-                "sender_id": auth.user_id,
+                "sender_id": payload.get("sender_id"),
                 "receiver_id": payload["recipient_id"],
             },
         )
         try:
-            result = self.message_bo.enqueue_message(payload, authenticated_user_id=auth.user_id)
+            result = self.message_bo.enqueue_message_for_async_validation(
+                payload=payload,
+                auth_token=token,
+                deduplication_id=payload.get("message_id") or context.request_id or context.correlation_id,
+                group_id=payload.get("conversation_id") or "unrouted",
+            )
             self.logger.info(
                 "message_sent_from_user_to_user",
                 {
-                    "sender_id": auth.user_id,
+                    "sender_id": payload.get("sender_id"),
                     "receiver_id": payload["recipient_id"],
                     "status": result["status"],
                 },
@@ -148,13 +151,17 @@ class MessageController:
 
     def process_sqs_record(self, record: dict) -> dict:
         """Process one queued message record under a propagated correlation context."""
-        payload = parse_aws_json_body({"body": record["body"]})
+        envelope = parse_aws_json_body({"body": record["body"]})
+        self.validator.validate(QUEUED_SEND_MESSAGE_SCHEMA, envelope)
+        payload = envelope["payload"]
+        auth = self.jwt_service.decode_access_token(envelope["auth_token"])
         self.validator.validate(SEND_MESSAGE_SCHEMA, payload)
+        self.message_bo.authorize_message_payload(payload, authenticated_user_id=auth.user_id)
         log_token = bind_log_context(
             {
                 "correlation_id": payload.get("correlation_id"),
                 "request_id": payload.get("request_id"),
-                "user_id": payload.get("sender_id"),
+                "user_id": auth.user_id,
                 "conversation_id": payload.get("conversation_id"),
                 "message_id": payload.get("message_id"),
                 "queue_name": record.get("eventSourceARN", "").rsplit(":", maxsplit=1)[-1],

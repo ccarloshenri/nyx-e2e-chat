@@ -17,8 +17,7 @@ def build_controller():
 
 def test_send_message_returns_accepted_response():
     controller = build_controller()
-    controller.jwt_service.decode_access_token.return_value = AuthContext("u1", "alice", "t1")
-    controller.message_bo.enqueue_message.return_value = {
+    controller.message_bo.enqueue_message_for_async_validation.return_value = {
         "message_id": "msg-1",
         "conversation_id": "conv-1",
         "status": "QUEUED",
@@ -47,8 +46,25 @@ def test_send_message_returns_accepted_response():
     ):
         response = controller.send_message({"headers": {"Authorization": "Bearer token"}})
 
-    controller.validator.validate.assert_called_once()
-    controller.message_bo.enqueue_message.assert_called_once()
+    controller.validator.validate.assert_not_called()
+    controller.message_bo.enqueue_message_for_async_validation.assert_called_once_with(
+        payload={
+            "conversation_id": "conv-1",
+            "sender_id": "u1",
+            "recipient_id": "u2",
+            "encryption_type": "AES_GCM_V1",
+            "ciphertext": "abc",
+            "encrypted_message_key": "def",
+            "nonce": "ghi",
+            "message_id": "msg-1",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "correlation_id": "corr-1",
+            "request_id": "req-1",
+        },
+        auth_token="token",
+        deduplication_id="msg-1",
+        group_id="conv-1",
+    )
     controller.response_formatter.success_response.assert_called_once_with(
         {
             "message_id": "msg-1",
@@ -114,4 +130,45 @@ def test_process_sqs_event_returns_batch_results():
         result = controller.process_sqs_event({"Records": [{"body": "1"}, {"body": "2"}]})
 
     assert result == {"batchItemFailures": [], "results": [{"id": 1}, {"id": 2}]}
-    controller.logger.info.assert_called_once_with("sqs_batch_processed", {"records": 2})
+    controller.logger.info.assert_called_once()
+    message, context = controller.logger.info.call_args.args
+    assert message == "sqs_batch_processed"
+    assert context["records"] == 2
+    assert "duration_ms" in context
+
+
+def test_process_sqs_record_validates_async_envelope_and_authorization():
+    controller = build_controller()
+    controller.jwt_service.decode_access_token.return_value = AuthContext("u1", "alice", "t1")
+    controller.message_bo.process_queued_message.return_value = {"message_id": "msg-1", "status": "DELIVERED"}
+
+    result = controller.process_sqs_record(
+        {
+            "body": (
+                '{"auth_token":"token","payload":{"conversation_id":"conv-1","sender_id":"u1",'
+                '"recipient_id":"u2","encryption_type":"AES_GCM_V1","ciphertext":"abc",'
+                '"encrypted_message_key":"def","nonce":"ghi","message_id":"msg-1",'
+                '"created_at":"2026-01-01T00:00:00+00:00"}}'
+            ),
+            "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:queue-name",
+        }
+    )
+
+    assert controller.validator.validate.call_count == 2
+    controller.jwt_service.decode_access_token.assert_called_once_with("token")
+    controller.message_bo.authorize_message_payload.assert_called_once_with(
+        {
+            "conversation_id": "conv-1",
+            "sender_id": "u1",
+            "recipient_id": "u2",
+            "encryption_type": "AES_GCM_V1",
+            "ciphertext": "abc",
+            "encrypted_message_key": "def",
+            "nonce": "ghi",
+            "message_id": "msg-1",
+            "created_at": "2026-01-01T00:00:00+00:00",
+        },
+        authenticated_user_id="u1",
+    )
+    controller.message_bo.process_queued_message.assert_called_once()
+    assert result == {"message_id": "msg-1", "status": "DELIVERED"}
