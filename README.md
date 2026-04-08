@@ -10,10 +10,13 @@ Nyx is a secure real-time chat platform with a Python serverless backend and a R
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Frontend Local Testing](#frontend-local-testing)
+- [Load Testing](#load-testing)
 - [Deployment Workflow](#deployment-workflow)
 - [Environment Variables](#environment-variables)
+- [How Conversations Work](#how-conversations-work)
 - [Master Password Model](#master-password-model)
 - [Conversation Password Model](#conversation-password-model)
+- [Detailed Encryption Flow](#detailed-encryption-flow)
 - [Logging And Observability](#logging-and-observability)
 - [Security Review](#security-review)
 - [AWS Deployment](#aws-deployment)
@@ -30,6 +33,86 @@ Nyx is designed for AWS deployment with:
 - JWT-based authentication
 
 The frontend is responsible for end-to-end encryption. The backend never decrypts message content.
+
+## How Conversations Work
+
+This is the current product behavior in practical terms.
+
+### What each user must know
+
+To start a conversation successfully, the creator must know:
+
+- the exact username of the other participant as it exists in the system
+- their own master password
+- the conversation password they want to use for that chat
+
+To open and read that conversation, the other participant must know:
+
+- their own master password
+- the same conversation password chosen for that chat
+
+Important:
+
+- the application does not currently negotiate or exchange the conversation password for users
+- the conversation password must be shared outside the app, by some separate trusted channel
+- if the username is typed incorrectly, the conversation creation request fails because the backend looks up the other participant by exact username
+- both participants must use the same conversation password for the same chat, otherwise they will not be able to derive the same conversation key and messages will not decrypt
+
+### What happens when a chat is created
+
+When user `alice` creates a chat with user `bob`:
+
+1. `alice` types `bob`'s exact username.
+2. `alice` enters her master password.
+3. `alice` defines a conversation password for that specific chat.
+4. The browser verifies `alice`'s master password locally.
+5. The browser derives a conversation key from the conversation password.
+6. The browser sends the backend only encrypted conversation metadata and encrypted message payloads.
+7. The backend stores a conversation record containing both participants, but not the plaintext conversation password.
+
+At this moment, `bob` is recognized as a participant by the backend, but `bob` still cannot read messages until he opens the chat with the same conversation password.
+
+### What happens when the other participant opens the chat
+
+When `bob` later opens the same conversation:
+
+1. `bob` logs in with his own account.
+2. `bob` selects the conversation.
+3. `bob` enters his own master password.
+4. `bob` enters the same conversation password that `alice` used when creating the chat.
+5. The browser derives the same conversation key locally.
+6. If the derived key matches the stored unlock check, the browser can decrypt the messages.
+
+If `bob` enters a different conversation password, the conversation remains locked because the derived key does not match the encrypted data for that chat.
+
+### What the backend knows and does not know
+
+The backend knows:
+
+- who the participants are
+- each participant's username and user id
+- encrypted conversation metadata
+- encrypted message payloads
+- which authenticated user is allowed to access which conversation
+
+The backend does not know:
+
+- any user's plaintext master password
+- the plaintext conversation password
+- the decrypted message content
+- the derived conversation key used to decrypt messages
+
+### Current UX limitations to be aware of
+
+The current implementation is intentionally simple and has a few important product constraints:
+
+- conversation creation depends on knowing the exact username of the other person
+- conversation access depends on both users sharing the same conversation password beforehand
+- there is no in-app password handoff, invite acceptance flow, or automatic key exchange yet
+- there is no password recovery flow for conversation passwords
+- if the shared conversation password is lost, the encrypted messages for that conversation cannot be opened
+- if a user chooses the wrong username when creating a chat, the conversation will target the wrong account or fail if the username does not exist
+- this model works for an MVP, but it is more manual than consumer chat apps because the shared secret is part of the security design
 
 ## Master Password Model
 
@@ -89,6 +172,134 @@ Important consequence:
 
 - The backend never knows the plaintext conversation password.
 - Messages stay encrypted in transit, in storage, and in the client until the chat is explicitly unlocked.
+
+## Detailed Encryption Flow
+
+This section describes the current end-to-end flow more precisely.
+
+### 1. Account registration
+
+During signup:
+
+1. The user chooses a username and a master password.
+2. The browser derives a verifier from the master password using PBKDF2.
+3. The browser generates and protects the user's local cryptographic material.
+4. The browser sends the backend:
+   - `username`
+   - `master_password_verifier`
+   - `master_password_salt`
+   - `master_password_kdf_params`
+   - encrypted private-key material and related wrapping metadata
+5. The backend stores the verifier and encrypted blobs, but not the plaintext master password.
+
+Result:
+
+- the master password becomes the root secret for that user's protected local material
+- the backend can later verify login proofs without ever receiving the plaintext password
+
+### 2. Login and JWT issuance
+
+During login:
+
+1. The browser calls `/auth/challenge` with the username.
+2. The backend returns a short-lived challenge token plus the stored KDF metadata needed to derive the verifier again in the browser.
+3. The browser derives the verifier locally from the typed master password.
+4. The browser computes a proof over the server challenge.
+5. The browser sends `username`, `challenge_token`, and `login_proof` to `/auth/login`.
+6. The backend validates that proof.
+7. If validation succeeds, the backend returns a JWT and non-sensitive user crypto metadata.
+
+Important consequence:
+
+- authentication is separate from conversation decryption
+- having a valid JWT means the user is authenticated to the backend
+- having a valid JWT does not mean the browser can automatically decrypt any conversation
+
+### 3. Conversation creation
+
+When a user creates a conversation:
+
+1. The creator types the other participant's exact username.
+2. The backend resolves that username to a real account.
+3. The creator enters their master password.
+4. The creator chooses a conversation password for that chat.
+5. The browser validates the creator's master password locally.
+6. The browser derives a conversation message key from:
+   - the conversation password
+   - a per-conversation salt
+   - per-conversation KDF parameters
+7. The browser creates an `unlock_check` encrypted with that derived key.
+8. The browser encrypts the conversation password with a key derived from the creator's master password.
+9. The browser sends the backend:
+   - the other participant username
+   - the conversation salt
+   - the conversation KDF metadata
+   - the unlock check ciphertext and nonce
+   - the creator's wrapped conversation-password blob
+10. The backend stores the conversation and marks both users as participants.
+
+Important consequence:
+
+- the backend can authorize access to the conversation by participant id
+- the backend still cannot decrypt the conversation because it never receives the plaintext conversation password
+
+### 4. Conversation opening
+
+When a participant opens a conversation:
+
+1. The browser fetches the encrypted conversation metadata and encrypted messages for that conversation.
+2. The user enters their master password.
+3. The browser validates the master password locally.
+4. The user enters the conversation password.
+5. The browser derives the conversation key locally from the conversation password plus the stored salt/KDF metadata.
+6. The browser validates the `unlock_check`.
+7. If validation succeeds, the browser decrypts the messages locally.
+8. If that participant does not yet have a saved wrapped conversation secret, the browser wraps the conversation password locally and uploads only the encrypted wrapper for future use.
+
+If the conversation password is wrong:
+
+- the derived key does not match the unlock check
+- the conversation stays locked
+- the backend still does not learn what the user typed
+
+### 5. Message encryption and delivery
+
+When a user sends a message:
+
+1. The browser first derives or reuses the unlocked conversation key locally.
+2. The browser encrypts the plaintext message locally.
+3. The browser sends only encrypted payload fields to the backend.
+4. The backend validates the JWT, validates the sender identity, and verifies that the sender belongs to that conversation.
+5. The backend stores the encrypted message and forwards it through the realtime/queue pipeline.
+6. The recipient browser receives encrypted message data.
+7. The recipient browser can only read the message after deriving the same conversation key locally.
+
+This means the backend is responsible for:
+
+- authentication
+- authorization
+- persistence
+- delivery
+
+But the browser is responsible for:
+
+- deriving keys
+- encrypting plaintext
+- decrypting ciphertext
+- validating passwords locally
+
+### 6. Why both participants need the same conversation password
+
+This is the most important product rule in the current implementation.
+
+The message encryption key for a conversation is derived from the conversation password and that conversation's salt/KDF settings. Because of that:
+
+- if two users type the same conversation password for the same conversation, they derive the same key
+- if they derive the same key, they can encrypt and decrypt the same message history
+- if they type different conversation passwords, they derive different keys
+- if they derive different keys, decryption fails
+
+So, in the current system, the shared conversation password is effectively the shared secret that makes end-to-end decryption possible for that chat.
 
 ## Tech Stack
 
@@ -300,6 +511,25 @@ npm run preview
 ```
 
 Use `npm run preview` when you want to validate the generated production build locally before deploying.
+
+## Load Testing
+
+The repository includes a dedicated bomber for backend load testing in [backend/bomber/](./backend/bomber).
+
+What it can do:
+
+- create or reuse synthetic users
+- authenticate them against the real API
+- create conversations between those users
+- stress test the `POST /messages` endpoint with concurrent async requests
+
+Quick example:
+
+```powershell
+backend\.venv\Scripts\python backend\bomber\main.py --base-url https://your-api-id.execute-api.us-east-1.amazonaws.com/main --users-file backend\bomber\users.seed.json --skip-register --requests 1000 --concurrency 100 --warmup 50
+```
+
+See [backend/bomber/README.md](./backend/bomber/README.md) for the available options and usage notes.
 
 ## Deployment Workflow
 
