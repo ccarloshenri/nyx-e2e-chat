@@ -28,7 +28,7 @@ export function ConversationList({
     return (
       <div className="panel-state">
         <h2>No chats yet</h2>
-        <p>Your private conversations will show up here as soon as they start.</p>
+        <p>Your conversations will appear here.</p>
       </div>
     );
   }
@@ -62,9 +62,7 @@ export function ConversationList({
                 {conversation.unreadCount > 0 ? (
                   <span className="unread-badge">{conversation.unreadCount}</span>
                 ) : (
-                  <span className="muted">
-                    {conversation.hasStoredSecret ? "Saved secret" : "Needs unlock setup"}
-                  </span>
+                  <span className="muted">{conversation.hasStoredSecret ? "Ready" : "New"}</span>
                 )}
               </div>
             </div>

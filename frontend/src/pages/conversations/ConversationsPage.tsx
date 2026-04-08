@@ -25,21 +25,28 @@ type RecipientInfo = {
   username: string;
 };
 
-type UnlockedConversationState = {
-  messageKey: CryptoKey;
-};
-
 function toBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
 export function ConversationsPage() {
-  const { token, user, logout } = useAuth();
+  const {
+    token,
+    user,
+    logout,
+    hasMasterPasswordInMemory,
+    unlockedConversationIds,
+    getMasterPasswordFromMemory,
+    rememberMasterPassword,
+    getConversationKeyFromMemory,
+    rememberConversationKey,
+  } = useAuth();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [targetUsername, setTargetUsername] = useState("");
+  const [isCreateChatOpen, setIsCreateChatOpen] = useState(false);
   const [createMasterPassword, setCreateMasterPassword] = useState("");
   const [createConversationPassword, setCreateConversationPassword] = useState("");
   const [confirmConversationPassword, setConfirmConversationPassword] = useState("");
@@ -55,7 +62,6 @@ export function ConversationsPage() {
   const [decryptedMessagesByConversation, setDecryptedMessagesByConversation] = useState<Record<string, ChatMessage[]>>(
     {},
   );
-  const [unlockedConversations, setUnlockedConversations] = useState<Record<string, UnlockedConversationState>>({});
   const [unlockMasterPassword, setUnlockMasterPassword] = useState("");
   const [unlockConversationPassword, setUnlockConversationPassword] = useState("");
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -73,7 +79,7 @@ export function ConversationsPage() {
     ? conversationAccessContext[selectedConversation.id] ?? null
     : null;
   const selectedUnlockedConversation = selectedConversation
-    ? unlockedConversations[selectedConversation.id] ?? null
+    ? getConversationKeyFromMemory(selectedConversation.id)
     : null;
   const selectedMessages = selectedConversation
     ? decryptedMessagesByConversation[selectedConversation.id] ?? []
@@ -164,7 +170,7 @@ export function ConversationsPage() {
           senderLabel: record.sender_id === user.user_id ? "You" : "Incoming",
         });
       } catch {
-        setUnlockNotice("Some encrypted messages could not be decrypted with the current conversation password.");
+        setUnlockNotice("Some messages could not be opened with this password.");
       }
     }
 
@@ -216,8 +222,8 @@ export function ConversationsPage() {
         received_at: new Date().toISOString(),
       });
 
-      const unlockedConversation = unlockedConversations[record.conversation_id];
-      if (unlockedConversation && user) {
+      const unlockedConversationKey = getConversationKeyFromMemory(record.conversation_id);
+      if (unlockedConversationKey && user) {
         try {
           const plaintext = await cryptoService.decryptMessage({
             payload: {
@@ -227,7 +233,7 @@ export function ConversationsPage() {
               nonce: record.nonce,
               metadata: record.metadata,
             },
-            messageKey: unlockedConversation.messageKey,
+            messageKey: unlockedConversationKey,
           });
 
           appendDecryptedMessage({
@@ -241,7 +247,7 @@ export function ConversationsPage() {
           });
           updateConversationActivity(record.conversation_id, plaintext, record.created_at);
         } catch {
-          setUnlockNotice("A new message arrived but stays encrypted until this chat is unlocked again.");
+          setUnlockNotice("A new message arrived. Open this chat to read it.");
         }
       }
     }
@@ -325,7 +331,7 @@ export function ConversationsPage() {
       return;
     }
 
-    void decryptConversationMessages(selectedConversation.id, selectedUnlockedConversation.messageKey);
+    void decryptConversationMessages(selectedConversation.id, selectedUnlockedConversation);
   }, [selectedConversation?.id, selectedUnlockedConversation, encryptedMessagesByConversation]);
 
   useEffect(() => {
@@ -341,7 +347,7 @@ export function ConversationsPage() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [token, unlockedConversations]);
+  }, [token, unlockedConversationIds]);
 
   useEffect(() => {
     if (!token || !env.websocketUrl) {
@@ -371,7 +377,7 @@ export function ConversationsPage() {
     return () => {
       socket.close();
     };
-  }, [token, unlockedConversations, user?.user_id]);
+  }, [token, unlockedConversationIds, user?.user_id]);
 
   async function handleCreateConversation() {
     if (!token || !user) {
@@ -379,6 +385,8 @@ export function ConversationsPage() {
     }
 
     const normalizedUsername = targetUsername.trim();
+    const sessionMasterPassword = getMasterPasswordFromMemory()?.trim() ?? "";
+    const normalizedMasterPassword = createMasterPassword.trim() || sessionMasterPassword;
     const normalizedConversationPassword = createConversationPassword.trim();
 
     if (!normalizedUsername) {
@@ -386,7 +394,7 @@ export function ConversationsPage() {
       return;
     }
 
-    if (!createMasterPassword.trim()) {
+    if (!normalizedMasterPassword) {
       setCreateErrorMessage("Enter your master password to protect the conversation secret.");
       return;
     }
@@ -418,13 +426,13 @@ export function ConversationsPage() {
     try {
       await cryptoService.validateMasterPassword(
         user.encrypted_private_key,
-        createMasterPassword,
+        normalizedMasterPassword,
         user.private_key_wrap_salt,
         user.private_key_wrap_kdf_params,
       );
 
       const secretWrapKey = await cryptoService.deriveSecretWrapKey(
-        createMasterPassword,
+        normalizedMasterPassword,
         user.secret_wrap_salt,
         user.secret_wrap_kdf_params,
       );
@@ -453,7 +461,9 @@ export function ConversationsPage() {
       setCreateMasterPassword("");
       setCreateConversationPassword("");
       setConfirmConversationPassword("");
-      setCreateSuccessMessage("Secure chat created. Share the conversation password out of band.");
+      setIsCreateChatOpen(false);
+      rememberMasterPassword(normalizedMasterPassword);
+      setCreateSuccessMessage("Chat created successfully.");
       await loadConversations();
     } catch (error) {
       setCreateErrorMessage(
@@ -469,7 +479,8 @@ export function ConversationsPage() {
       return;
     }
 
-    const normalizedMasterPassword = unlockMasterPassword.trim();
+    const sessionMasterPassword = getMasterPasswordFromMemory()?.trim() ?? "";
+    const normalizedMasterPassword = unlockMasterPassword.trim() || sessionMasterPassword;
     const normalizedConversationPassword = unlockConversationPassword.trim();
 
     if (!normalizedMasterPassword) {
@@ -557,13 +568,11 @@ export function ConversationsPage() {
         }));
       }
 
-      setUnlockedConversations((currentUnlockedConversations) => ({
-        ...currentUnlockedConversations,
-        [selectedConversation.id]: { messageKey },
-      }));
+      rememberConversationKey(selectedConversation.id, messageKey);
+      rememberMasterPassword(normalizedMasterPassword);
       setUnlockMasterPassword("");
       setUnlockConversationPassword("");
-      setUnlockNotice("Conversation unlocked locally. The master password was not stored.");
+      setUnlockNotice("Chat opened successfully.");
     } catch (error) {
       setUnlockError(error instanceof Error ? error.message : "Unable to unlock this conversation.");
     } finally {
@@ -589,7 +598,7 @@ export function ConversationsPage() {
       const messageId = crypto.randomUUID();
       const encryptedPayload = await cryptoService.encryptMessage(EncryptionType.AES_GCM_CONVERSATION_V1, {
         plaintext: normalizedMessage,
-        messageKey: selectedUnlockedConversation.messageKey,
+        messageKey: selectedUnlockedConversation,
         encryptedMessageKey: "",
         metadata: {
           protected_by: "conversation_password",
@@ -650,69 +659,82 @@ export function ConversationsPage() {
           <div className="sidebar-search">
             <div className="sidebar-search-copy">
               <span className="eyebrow">New chat</span>
-              <h2>Create a protected chat</h2>
-              <p className="sidebar-helper-text">
-                Choose who to talk to, confirm your master password, and define one unique password for this chat.
-              </p>
+              <div className="sidebar-search-heading">
+                <div>
+                  <h2>Start a new conversation</h2>
+                  <p className="sidebar-helper-text">Pick a username and set a password for this chat.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant={isCreateChatOpen ? "secondary" : "primary"}
+                  onClick={() => setIsCreateChatOpen((currentValue) => !currentValue)}
+                >
+                  {isCreateChatOpen ? "Close" : "Create chat"}
+                </Button>
+              </div>
             </div>
-            <div className="sidebar-search-form">
-              <InputField
-                id="target-username"
-                label="Username"
-                placeholder="Type a username"
-                value={targetUsername}
-                onChange={(event) => setTargetUsername(event.target.value)}
-                autoComplete="off"
-                required
-              />
-              <InputField
-                id="create-master-password"
-                label="Master password"
-                type="password"
-                placeholder="Enter your master password"
-                value={createMasterPassword}
-                onChange={(event) => setCreateMasterPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-              />
-              <InputField
-                id="create-conversation-password"
-                label="Conversation password"
-                type="password"
-                placeholder="Define a password for this chat"
-                value={createConversationPassword}
-                onChange={(event) => setCreateConversationPassword(event.target.value)}
-                autoComplete="new-password"
-                required
-              />
-              <InputField
-                id="confirm-conversation-password"
-                label="Confirm conversation password"
-                type="password"
-                placeholder="Repeat the conversation password"
-                value={confirmConversationPassword}
-                onChange={(event) => setConfirmConversationPassword(event.target.value)}
-                autoComplete="new-password"
-                required
-              />
-              {createErrorMessage ? <div className="banner-error">{createErrorMessage}</div> : null}
-              {createSuccessMessage ? <div className="banner-success">{createSuccessMessage}</div> : null}
-              <Button
-                type="button"
-                variant="primary"
-                fullWidth
-                disabled={isCreatingConversation}
-                onClick={() => void handleCreateConversation()}
-              >
-                {isCreatingConversation ? "Creating..." : "Create secure chat"}
-              </Button>
-            </div>
+            {isCreateChatOpen ? (
+              <div className="sidebar-search-form">
+                <InputField
+                  id="target-username"
+                  label="Username"
+                  placeholder="Type a username"
+                  value={targetUsername}
+                  onChange={(event) => setTargetUsername(event.target.value)}
+                  autoComplete="off"
+                  required
+                />
+                {!hasMasterPasswordInMemory ? (
+                  <InputField
+                    id="create-master-password"
+                    label="Master password"
+                    type="password"
+                    placeholder="Enter your master password"
+                    value={createMasterPassword}
+                    onChange={(event) => setCreateMasterPassword(event.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                ) : null}
+                <InputField
+                  id="create-conversation-password"
+                  label="Conversation password"
+                  type="password"
+                  placeholder="Create a password for this chat"
+                  value={createConversationPassword}
+                  onChange={(event) => setCreateConversationPassword(event.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                <InputField
+                  id="confirm-conversation-password"
+                  label="Confirm conversation password"
+                  type="password"
+                  placeholder="Repeat the conversation password"
+                  value={confirmConversationPassword}
+                  onChange={(event) => setConfirmConversationPassword(event.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                {createErrorMessage ? <div className="banner-error">{createErrorMessage}</div> : null}
+                {createSuccessMessage ? <div className="banner-success">{createSuccessMessage}</div> : null}
+                <Button
+                  type="button"
+                  variant="primary"
+                  fullWidth
+                  disabled={isCreatingConversation}
+                  onClick={() => void handleCreateConversation()}
+                >
+                  {isCreatingConversation ? "Creating..." : "Create chat"}
+                </Button>
+              </div>
+            ) : null}
           </div>
           <div className="sidebar-list">
             <div className="sidebar-list-header">
               <div className="sidebar-list-copy">
                 <span className="eyebrow">Chats</span>
-                <h2>Your messages</h2>
+                <h2>Recent</h2>
               </div>
               <span className="sidebar-counter">{conversations.length}</span>
             </div>
@@ -735,11 +757,11 @@ export function ConversationsPage() {
                   </span>
                   <div className="chat-identity-copy">
                     <h2>{selectedConversation.title}</h2>
-                    <p className="muted">Protected with your master password and this chat's own secret.</p>
+                    <p className="muted">{selectedConversation.participantLabel}</p>
                   </div>
                 </div>
                 <div className="chat-security-badge">
-                  {selectedUnlockedConversation ? "Unlocked locally" : "Locked"}
+                  {selectedUnlockedConversation ? "Open" : "Locked"}
                 </div>
               </div>
 
@@ -770,7 +792,7 @@ export function ConversationsPage() {
                       ))
                     ) : (
                       <div className="chat-empty-inline">
-                        <p>No messages yet in this secure chat.</p>
+                        <p>No messages yet.</p>
                       </div>
                     )}
                   </div>
@@ -799,24 +821,23 @@ export function ConversationsPage() {
                 </>
               ) : (
                 <div className="chat-locked-shell">
-                  <div className="chat-locked-card">
-                    <span className="eyebrow">Unlock chat</span>
-                    <h2>Open this conversation securely</h2>
-                    <p className="muted">
-                      The backend only stores encrypted blobs. Enter your master password and the conversation
-                      password to decrypt messages locally in this browser.
-                    </p>
+                <div className="chat-locked-card">
+                  <span className="eyebrow">Unlock chat</span>
+                    <h2>Enter this chat</h2>
+                    <p className="muted">Use your passwords to open the conversation.</p>
                     <div className="chat-unlock-form">
-                      <InputField
-                        id="unlock-master-password"
-                        label="Master password"
-                        type="password"
-                        placeholder="Enter your master password"
-                        value={unlockMasterPassword}
-                        onChange={(event) => setUnlockMasterPassword(event.target.value)}
-                        autoComplete="current-password"
-                        required
-                      />
+                      {!hasMasterPasswordInMemory ? (
+                        <InputField
+                          id="unlock-master-password"
+                          label="Master password"
+                          type="password"
+                          placeholder="Enter your master password"
+                          value={unlockMasterPassword}
+                          onChange={(event) => setUnlockMasterPassword(event.target.value)}
+                          autoComplete="current-password"
+                          required
+                        />
+                      ) : null}
                       <InputField
                         id="unlock-conversation-password"
                         label="Conversation password"
@@ -835,7 +856,7 @@ export function ConversationsPage() {
                         disabled={isUnlockingConversation}
                         onClick={() => void handleUnlockConversation()}
                       >
-                        {isUnlockingConversation ? "Unlocking..." : "Unlock conversation"}
+                        {isUnlockingConversation ? "Opening..." : "Open chat"}
                       </Button>
                     </div>
                   </div>
@@ -845,7 +866,7 @@ export function ConversationsPage() {
           ) : (
             <div className="panel-state chat-empty-state">
               <h2>Select a chat</h2>
-              <p>Choose someone on the left or start a new secure conversation by username.</p>
+              <p>Choose a conversation or start a new one.</p>
             </div>
           )}
         </section>

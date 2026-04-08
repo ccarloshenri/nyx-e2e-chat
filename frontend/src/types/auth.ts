@@ -72,7 +72,16 @@ export type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isRestoring: boolean;
+  hasMasterPasswordInMemory: boolean;
+  unlockedConversationIds: string[];
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
+  getMasterPasswordFromMemory: () => string | null;
+  rememberMasterPassword: (masterPassword: string) => void;
+  clearMasterPasswordFromMemory: () => void;
+  getConversationKeyFromMemory: (conversationId: string) => CryptoKey | null;
+  rememberConversationKey: (conversationId: string, messageKey: CryptoKey) => void;
+  forgetConversationKey: (conversationId: string) => void;
+  clearConversationKeysFromMemory: () => void;
   logout: () => void;
 };
