@@ -1,7 +1,5 @@
 # Nyx - End-to-End Encrypted Chat
 
-Live demo: [teste aqui](http://nyx-frontend-644248156885-us-east-1.s3-website-us-east-1.amazonaws.com/login)
-
 Nyx is a secure real-time chat platform with a Python serverless backend and a React frontend. Message encryption and decryption happen only on the client. The backend only validates, stores, and forwards encrypted payloads.
 
 ## Contents
